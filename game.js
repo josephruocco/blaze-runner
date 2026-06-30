@@ -142,6 +142,105 @@ class SoundEngine {
     osc.connect(g); g.connect(this.ctx.destination);
     osc.start(); osc.stop(t + 0.5);
   }
+
+  // ── Background music ──
+  startMusic() {
+    if (!this.ctx || this.musicPlaying) return;
+    this._resume();
+    this.musicPlaying = true;
+    this.musicMuted   = false;
+
+    // Master gain for muting
+    this.musicGain = this.ctx.createGain();
+    this.musicGain.gain.value = 0.0;
+    this.musicGain.connect(this.ctx.destination);
+    // Fade in
+    this.musicGain.gain.setTargetAtTime(1.0, this.ctx.currentTime, 1.2);
+
+    // Warm pad — detuned sine oscillators (A minor-ish)
+    const padFreqs = [110, 130.81, 164.81, 220, 261.63];
+    this.padNodes = padFreqs.map((freq, i) => {
+      const osc = this.ctx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.value = freq + i * 0.25;
+      const g = this.ctx.createGain();
+      g.gain.value = 0.022;
+      const lp = this.ctx.createBiquadFilter();
+      lp.type = 'lowpass'; lp.frequency.value = 600;
+      osc.connect(lp); lp.connect(g); g.connect(this.musicGain);
+      osc.start();
+      return osc;
+    });
+
+    this._scheduleBeat();
+  }
+
+  _scheduleKick(t) {
+    const osc = this.ctx.createOscillator();
+    osc.frequency.setValueAtTime(160, t);
+    osc.frequency.exponentialRampToValueAtTime(40, t + 0.15);
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(0.55, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.28);
+    osc.connect(g); g.connect(this.musicGain);
+    osc.start(t); osc.stop(t + 0.3);
+  }
+
+  _scheduleSnare(t) {
+    const buf = this.ctx.createBuffer(1, this.ctx.sampleRate * 0.18, this.ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.exp(-i / (this.ctx.sampleRate * 0.055));
+    const src = this.ctx.createBufferSource(); src.buffer = buf;
+    const g = this.ctx.createGain(); g.gain.value = 0.13;
+    src.connect(g); g.connect(this.musicGain); src.start(t);
+  }
+
+  _scheduleHihat(t, gain = 0.04) {
+    const buf = this.ctx.createBuffer(1, this.ctx.sampleRate * 0.04, this.ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    const src = this.ctx.createBufferSource(); src.buffer = buf;
+    const hp = this.ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 8000;
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(gain, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.04);
+    src.connect(hp); hp.connect(g); g.connect(this.musicGain); src.start(t);
+  }
+
+  _scheduleBeat() {
+    if (!this.musicPlaying) return;
+    const bpm  = 82;
+    const beat = 60 / bpm;
+    const t    = this.ctx.currentTime + 0.05;
+
+    for (let i = 0; i < 8; i++) {           // 2-bar loop
+      const bt = t + i * beat;
+      if (i % 4 === 0) this._scheduleKick(bt);           // kick on 1
+      if (i % 4 === 2) this._scheduleKick(bt);           // kick on 3
+      if (i % 4 === 1 || i % 4 === 3) this._scheduleSnare(bt); // snare 2,4
+      this._scheduleHihat(bt);                            // hihat every beat
+      this._scheduleHihat(bt + beat * 0.5, 0.025);       // off-beat hihat
+    }
+
+    this._beatTimer = setTimeout(() => this._scheduleBeat(), beat * 8 * 1000 - 80);
+  }
+
+  stopMusic() {
+    this.musicPlaying = false;
+    if (this._beatTimer) clearTimeout(this._beatTimer);
+    if (this.musicGain) {
+      this.musicGain.gain.setTargetAtTime(0, this.ctx.currentTime, 0.4);
+      setTimeout(() => {
+        if (this.padNodes) { this.padNodes.forEach(o => { try { o.stop(); } catch(e){} }); this.padNodes = null; }
+      }, 1500);
+    }
+  }
+
+  toggleMute() {
+    if (!this.musicGain) return;
+    this.musicMuted = !this.musicMuted;
+    this.musicGain.gain.setTargetAtTime(this.musicMuted ? 0 : 1, this.ctx.currentTime, 0.3);
+    return this.musicMuted;
+  }
 }
 const SFX = new SoundEngine();
 
@@ -152,69 +251,83 @@ class MenuScene extends Phaser.Scene {
   constructor() { super('Menu'); }
 
   create() {
-    this.add.rectangle(W / 2, H / 2, W, H, 0x0d1117);
+    this.add.rectangle(W / 2, H / 2, W, H, 0x0a0f0a);
 
-    this.add.text(W / 2, 130, 'STONER SIMULATOR', {
-      fontSize: '52px', fontFamily: 'Arial Black, Arial',
-      color: '#00ff88', stroke: '#004422', strokeThickness: 6
+    // Floating smoke bubbles background
+    for (let i = 0; i < 8; i++) {
+      const c = this.add.circle(Phaser.Math.Between(60, W - 60), H + 20,
+        Phaser.Math.Between(6, 20), 0x33aa55, 0.18);
+      this.tweens.add({
+        targets: c, y: -60, alpha: 0, scaleX: 3.5, scaleY: 3.5,
+        duration: Phaser.Math.Between(3500, 6500), delay: i * 700, repeat: -1,
+        onRepeat: () => { c.x = Phaser.Math.Between(60, W - 60); c.y = H + 20; c.alpha = 0.18; c.setScale(1); }
+      });
+    }
+
+    // Title
+    this.add.text(W / 2, 72, 'STONER SIMULATOR', {
+      fontSize: '58px', fontFamily: 'Arial Black, Arial',
+      color: '#00ff88', stroke: '#003311', strokeThickness: 8
     }).setOrigin(0.5);
 
-    this.add.text(W / 2, 195, 'stay as high as possible for as long as possible', {
-      fontSize: '18px', fontFamily: 'Arial', color: '#66cc88'
+    this.add.text(W / 2, 130, 'stay as high as possible for as long as possible', {
+      fontSize: '16px', fontFamily: 'Arial', color: '#55aa77', fontStyle: 'italic'
     }).setOrigin(0.5);
 
     const best = parseInt(localStorage.getItem('stonerHighScore') || '0');
     if (best > 0) {
-      this.add.text(W / 2, 228, `🏆 Best Score: ${best}`, {
-        fontSize: '16px', fontFamily: 'Arial', color: '#ffdd00'
+      this.add.text(W / 2, 158, `🏆 Best Score: ${best}`, {
+        fontSize: '15px', fontFamily: 'Arial Black, Arial', color: '#ffdd00'
       }).setOrigin(0.5);
     }
 
-    const lines = [
-      'WASD / Arrow Keys  —  drive',
-      'Work shifts: Pizza Delivery  &  Ambulance Driver',
-      'Between shifts: Sleep, Eat, or Smoke',
-      '',
-      'Hit pedestrians  →  Vehicular Manslaughter  →  Cops + Loan Shark',
-      'Loan Shark debt  →  Bullets fly at you',
-      '',
-      'The higher you get, the harder it is to drive',
-      '  paranoia · distorted vision · inverted controls',
-      '',
-      '⛽ Gas Station: refuel HP   🏪 Corner Store: buy weed on the go',
-      '',
-      'Crash or die from injuries  =  GAME OVER',
-    ];
-    lines.forEach((l, i) => {
-      this.add.text(W / 2, 258 + i * 24, l, {
-        fontSize: '14px', fontFamily: 'Arial',
-        color: l.startsWith(' ') ? '#88ffaa' : '#aaaaaa'
-      }).setOrigin(0.5);
-    });
+    // ── Left column: Controls ──
+    const col1x = W / 2 - 230, col2x = W / 2 + 100, rowY = 210;
+    const hStyle = { fontSize: '13px', fontFamily: 'Arial Black, Arial', color: '#00ff88' };
+    const bStyle = { fontSize: '12px', fontFamily: 'Arial', color: '#aaaaaa', lineSpacing: 6 };
 
-    const btn = this.add.rectangle(W / 2, H - 65, 240, 52, 0x007733)
-      .setInteractive({ useHandCursor: true });
-    this.add.text(W / 2, H - 65, 'START SMOKING', {
+    this.add.text(col1x, rowY,      '🎮 CONTROLS',    hStyle);
+    this.add.text(col1x, rowY + 24, 'WASD / Arrows — drive\nE — interact with gas & store\n? — toggle this guide', bStyle);
+
+    this.add.text(col1x, rowY + 100, '💼 YOUR JOB',   hStyle);
+    this.add.text(col1x, rowY + 124, 'Complete pizza & ambulance shifts\nto earn cash. Between shifts:\nSleep / Eat / Smoke 🌿', bStyle);
+
+    this.add.text(col1x, rowY + 220, '⚠️  DANGER',    hStyle);
+    this.add.text(col1x, rowY + 244, 'Hit a pedestrian → Loan Shark\nbails you out → drive-by crew\nchases you. Pay off your debt!', bStyle);
+
+    // ── Right column: Tips ──
+    this.add.text(col2x, rowY,      '📈 SCORING',     hStyle);
+    this.add.text(col2x, rowY + 24, 'Score = time × high level\nHigher = more points\nbut harder to drive', bStyle);
+
+    this.add.text(col2x, rowY + 100, '🌿 GETTING HIGH', hStyle);
+    this.add.text(col2x, rowY + 124, 'Smoke between shifts or\nbuy from the corner store.\nThe higher you get, the\nmore your car serpentines!', bStyle);
+
+    this.add.text(col2x, rowY + 220, '💡 TIPS',        hStyle);
+    this.add.text(col2x, rowY + 244, '⛽ Gas station heals HP\n🏥 Hospital = ambulance drop-off\n🍕 Pizza HQ = pizza pick-up\nFollow the arrow to your job', bStyle);
+
+    // Divider
+    const div = this.add.graphics();
+    div.lineStyle(1, 0x225533, 0.6);
+    div.lineBetween(W / 2 - 10, rowY, W / 2 - 10, rowY + 340);
+
+    // Start button
+    const btn = this.add.rectangle(W / 2, H - 52, 260, 56, 0x007733)
+      .setInteractive({ useHandCursor: true })
+      .setStrokeStyle(2, 0x00ff88);
+    const btnTxt = this.add.text(W / 2, H - 52, '🌿  START SMOKING', {
       fontSize: '22px', fontFamily: 'Arial Black, Arial', color: '#ffffff'
     }).setOrigin(0.5);
 
-    btn.on('pointerover', () => btn.setFillStyle(0x00aa44));
-    btn.on('pointerout',  () => btn.setFillStyle(0x007733));
+    btn.on('pointerover', () => { btn.setFillStyle(0x00aa44); btnTxt.setColor('#ccffcc'); });
+    btn.on('pointerout',  () => { btn.setFillStyle(0x007733); btnTxt.setColor('#ffffff'); });
     btn.on('pointerdown', () => {
-      btn.setFillStyle(0x00ff66);
       SFX.init();
-      this.scene.start('Game');
+      this.cameras.main.fade(400, 0, 0, 0);
+      this.time.delayedCall(400, () => this.scene.start('Game'));
     });
 
-    for (let i = 0; i < 6; i++) {
-      const c = this.add.circle(Phaser.Math.Between(80, W - 80), H + 20,
-        Phaser.Math.Between(8, 22), 0x33aa55, 0.25);
-      this.tweens.add({
-        targets: c, y: -60, alpha: 0, scaleX: 4, scaleY: 4,
-        duration: Phaser.Math.Between(3500, 6000), delay: i * 900, repeat: -1,
-        onRepeat: () => { c.x = Phaser.Math.Between(80, W - 80); c.y = H + 20; c.alpha = 0.25; c.setScale(1); }
-      });
-    }
+    // Pulse the button
+    this.tweens.add({ targets: btn, scaleX: 1.03, scaleY: 1.03, duration: 800, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
   }
 }
 
@@ -465,8 +578,77 @@ class UIScene extends Phaser.Scene {
     // Dynamic dots layer
     this.mmDots = this.add.graphics().setScrollFactor(0).setDepth(97);
 
+    // ── Mute button ──
+    this.muteBtn = this.add.text(W - 48, H - 14, '🔊', {
+      fontSize: '16px', fontFamily: 'Arial', backgroundColor: '#224422', padding: { x: 5, y: 3 }
+    }).setOrigin(1, 1).setScrollFactor(0).setDepth(120).setInteractive({ useHandCursor: true });
+    this.muteBtn.on('pointerdown', () => {
+      const muted = SFX.toggleMute();
+      this.muteBtn.setText(muted ? '🔇' : '🔊');
+    });
+    this.input.keyboard.on('keydown-M', () => {
+      const muted = SFX.toggleMute();
+      this.muteBtn.setText(muted ? '🔇' : '🔊');
+    });
+
+    // ── Help overlay (? button) ──
+    this.helpVisible = false;
+    const helpBtn = this.add.text(W - 14, H - 14, '?', {
+      fontSize: '18px', fontFamily: 'Arial Black, Arial', color: '#ffffff',
+      backgroundColor: '#224422', padding: { x: 7, y: 3 }
+    }).setOrigin(1, 1).setScrollFactor(0).setDepth(120).setInteractive({ useHandCursor: true });
+
+    this.helpPanel = this.add.rectangle(W / 2, H / 2, 540, 340, 0x0a1a0a, 0.96)
+      .setScrollFactor(0).setDepth(121).setStrokeStyle(2, 0x00ff88).setVisible(false);
+
+    const helpLines = [
+      ['🎮 CONTROLS',       'WASD / Arrows = drive    E = use gas station / store'],
+      ['💼 JOBS',           'Pick up & deliver pizza or ambulance patients for cash'],
+      ['🌿 GETTING HIGH',   'Smoke weed to raise your high meter — score = high × time'],
+      ['🚗 SERPENTINE',     'The higher you are, the more your car sways & jerks'],
+      ['⚠️  LOAN SHARK',    'Kill a pedestrian → debt → drive-by crew chases you'],
+      ['💸 PAY DEBT',       'Choose "Pay Debt" at the time-off screen to call them off'],
+      ['⛽ GAS STATION',    'Drive close and press E to restore health for $40'],
+      ['🏪 CORNER STORE',   'Buy weed mid-shift for $45 with E — no need to wait'],
+    ];
+    this.helpTexts = helpLines.map(([ label, desc ], i) => {
+      const y = H / 2 - 120 + i * 36;
+      const a = this.add.text(W / 2 - 250, y, label, {
+        fontSize: '13px', fontFamily: 'Arial Black, Arial', color: '#00ff88'
+      }).setScrollFactor(0).setDepth(122).setVisible(false);
+      const b = this.add.text(W / 2 - 50, y, desc, {
+        fontSize: '12px', fontFamily: 'Arial', color: '#cccccc'
+      }).setScrollFactor(0).setDepth(122).setVisible(false);
+      return [a, b];
+    });
+    const helpTitle = this.add.text(W / 2, H / 2 - 152, 'HOW TO PLAY  —  press ? to close', {
+      fontSize: '14px', fontFamily: 'Arial Black, Arial', color: '#ffffff'
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(122).setVisible(false);
+    this.helpTexts.push([helpTitle]);
+
+    const toggleHelp = () => {
+      this.helpVisible = !this.helpVisible;
+      this.helpPanel.setVisible(this.helpVisible);
+      this.helpTexts.forEach(row => row.forEach(t => t.setVisible(this.helpVisible)));
+      helpBtn.setText(this.helpVisible ? '✕' : '?');
+    };
+    helpBtn.on('pointerdown', toggleHelp);
+    this.input.keyboard.on('keydown-QUESTION_MARK', toggleHelp);
+
+    // ── Pause overlay ──
+    this.pauseOverlay = this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.6)
+      .setScrollFactor(0).setDepth(150).setVisible(false);
+    this.pauseText = this.add.text(W / 2, H / 2, 'PAUSED\n\nP — resume\nM — mute / unmute\n? — controls', {
+      fontSize: '28px', fontFamily: 'Arial Black, Arial', color: '#00ff88',
+      align: 'center', stroke: '#000', strokeThickness: 4, lineSpacing: 10
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(151).setVisible(false);
+
     Bus.on('ui-update', this.onUpdate, this);
     Bus.on('paranoid',  this.showParanoid, this);
+    Bus.on('pause', (p) => {
+      this.pauseOverlay.setVisible(p);
+      this.pauseText.setVisible(p);
+    });
   }
 
   onUpdate(d) {
@@ -648,7 +830,9 @@ class GameScene extends Phaser.Scene {
       left:  this.input.keyboard.addKey('A'),
       right: this.input.keyboard.addKey('D'),
     };
-    this.eKey = this.input.keyboard.addKey('E');
+    this.eKey   = this.input.keyboard.addKey('E');
+    this.pKey   = this.input.keyboard.addKey('P');
+    this.paused = false;
 
     this.physics.world.setBounds(0, 0, WORLD_W, WORLD_H);
     this.cameras.main.setBounds(0, 0, WORLD_W, WORLD_H);
@@ -673,6 +857,7 @@ class GameScene extends Phaser.Scene {
 
     SFX.init();
     SFX.startEngine();
+    SFX.startMusic();
 
     this.time.delayedCall(1800, () => this.startNewShift());
     this.showStatus('Starting shift soon...');
@@ -1295,6 +1480,7 @@ class GameScene extends Phaser.Scene {
     if (!this.gameActive) return;
     this.gameActive = false;
     SFX.stopEngine();
+    SFX.stopMusic();
     this.player.setVelocity(0, 0);
     this.cameras.main.shake(600, 0.04);
     this.cameras.main.flash(1200, 200, 50, 0);
@@ -1312,6 +1498,14 @@ class GameScene extends Phaser.Scene {
   /* ── Main Update ── */
   update(time, delta) {
     if (!this.gameActive || this.isInTimeOff) return;
+
+    // Pause toggle
+    if (Phaser.Input.Keyboard.JustDown(this.pKey)) {
+      this.paused = !this.paused;
+      this.player.setVelocity(0, 0);
+      Bus.emit('pause', this.paused);
+    }
+    if (this.paused) return;
 
     const dt  = delta / 1000;
     const inv = this.controlsInverted ? -1 : 1;
