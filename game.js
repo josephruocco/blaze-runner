@@ -9,6 +9,8 @@ const COLS = 32, ROWS = 32;
 const WORLD_W = COLS * TILE;
 const WORLD_H = ROWS * TILE;
 
+const PIXEL_FONT = '"Press Start 2P", monospace';
+
 const SHIFT_DURATION = 90;
 const NPC_COUNT      = 6;
 const MAX_HIGH       = 100;
@@ -18,6 +20,10 @@ const SMOKE_COST     = 45;
 const EAT_COST       = 25;
 const JOB_PAY        = 180;
 const REACH_DIST     = 90;
+const DEBT_PER_KILL  = 2000;   // first manslaughter puts you here
+const DEBT_REPEAT    = 1500;   // each additional kill adds this
+const HITMAN_IFRAMES = 1200;   // ms of invulnerability after a ram
+const BOLD_NIGHTS    = 3;      // nights owing before the crew hunts in daylight too
 
 /* ── Global event bus (no Phaser dependency at load time) ── */
 const Bus = {
@@ -244,78 +250,70 @@ class SoundEngine {
 }
 const SFX = new SoundEngine();
 
+/* ── Shared car sprite drawing (used by Menu + Game) ── */
+function drawCarShape(g, bodyColor, isAmb, isCop) {
+  g.fillStyle(0x111111);
+  g.fillRect(0, 4, 5, 12); g.fillRect(31, 4, 5, 12);
+  g.fillRect(0, 38, 5, 12); g.fillRect(31, 38, 5, 12);
+
+  g.fillStyle(bodyColor);
+  g.fillRect(5, 2, 26, 52);
+
+  if (isCop) {
+    g.fillStyle(0x0033cc); g.fillRect(5, 18, 26, 20);
+    g.fillStyle(0xff0000); g.fillRect(7, 0, 10, 5);
+    g.fillStyle(0x0000ff); g.fillRect(19, 0, 10, 5);
+  }
+
+  g.fillStyle(0x88ccff, 0.8); g.fillRect(8, 6, 20, 16);
+  g.fillStyle(0x88ccff, 0.5); g.fillRect(8, 36, 20, 12);
+  g.fillStyle(0xffffcc); g.fillRect(7, 2, 7, 4); g.fillRect(22, 2, 7, 4);
+  g.fillStyle(0xff2222); g.fillRect(7, 50, 7, 4); g.fillRect(22, 50, 7, 4);
+
+  if (isAmb) {
+    g.fillStyle(0xff0000); g.fillRect(16, 18, 4, 16); g.fillRect(10, 24, 16, 4);
+    g.fillStyle(0x0044ff); g.fillRect(8, 2, 10, 3);
+    g.fillStyle(0xff0000); g.fillRect(18, 2, 10, 3);
+  }
+}
+
 /* ═══════════════════════════════════════════
    MENU SCENE
 ═══════════════════════════════════════════ */
 class MenuScene extends Phaser.Scene {
   constructor() { super('Menu'); }
 
+  preload() { this.load.image('cover', 'cover.png'); }
+
   create() {
-    this.add.rectangle(W / 2, H / 2, W, H, 0x0a0f0a);
+    this.add.rectangle(W / 2, H / 2, W, H, 0x000000);
 
-    // Floating smoke bubbles background
-    for (let i = 0; i < 8; i++) {
-      const c = this.add.circle(Phaser.Math.Between(60, W - 60), H + 20,
-        Phaser.Math.Between(6, 20), 0x33aa55, 0.18);
-      this.tweens.add({
-        targets: c, y: -60, alpha: 0, scaleX: 3.5, scaleY: 3.5,
-        duration: Phaser.Math.Between(3500, 6500), delay: i * 700, repeat: -1,
-        onRepeat: () => { c.x = Phaser.Math.Between(60, W - 60); c.y = H + 20; c.alpha = 0.18; c.setScale(1); }
-      });
-    }
+    // Cover art occupies the top half
+    const cover = this.add.image(W / 2, 20, 'cover').setOrigin(0.5, 0);
+    cover.setScale((H / 2 - 20) / cover.height);
 
-    // Title
-    this.add.text(W / 2, 72, 'STONER SIMULATOR', {
-      fontSize: '58px', fontFamily: 'Arial Black, Arial',
-      color: '#00ff88', stroke: '#003311', strokeThickness: 8
+    // Minimal instructions
+    this.add.text(W / 2, H / 2 + 50, 'Stay as high as possible, for as long as possible.', {
+      fontSize: '18px', fontFamily: 'Arial', color: '#cfe8d6', fontStyle: 'italic'
     }).setOrigin(0.5);
 
-    this.add.text(W / 2, 130, 'stay as high as possible for as long as possible', {
-      fontSize: '16px', fontFamily: 'Arial', color: '#55aa77', fontStyle: 'italic'
+    this.add.text(W / 2, H / 2 + 90, 'WASD / Arrows — drive    SPACE — brake    E — interact    ? — help', {
+      fontSize: '15px', fontFamily: 'Arial', color: '#8aa596'
     }).setOrigin(0.5);
 
     const best = parseInt(localStorage.getItem('stonerHighScore') || '0');
     if (best > 0) {
-      this.add.text(W / 2, 158, `🏆 Best Score: ${best}`, {
+      this.add.text(W / 2, H / 2 + 124, `🏆 Best Score: ${best}`, {
         fontSize: '15px', fontFamily: 'Arial Black, Arial', color: '#ffdd00'
       }).setOrigin(0.5);
     }
 
-    // ── Left column: Controls ──
-    const col1x = W / 2 - 230, col2x = W / 2 + 100, rowY = 210;
-    const hStyle = { fontSize: '13px', fontFamily: 'Arial Black, Arial', color: '#00ff88' };
-    const bStyle = { fontSize: '12px', fontFamily: 'Arial', color: '#aaaaaa', lineSpacing: 6 };
-
-    this.add.text(col1x, rowY,      '🎮 CONTROLS',    hStyle);
-    this.add.text(col1x, rowY + 24, 'WASD / Arrows — drive\nE — interact with gas & store\n? — toggle this guide', bStyle);
-
-    this.add.text(col1x, rowY + 100, '💼 YOUR JOB',   hStyle);
-    this.add.text(col1x, rowY + 124, 'Complete pizza & ambulance shifts\nto earn cash. Between shifts:\nSleep / Eat / Smoke 🌿', bStyle);
-
-    this.add.text(col1x, rowY + 220, '⚠️  DANGER',    hStyle);
-    this.add.text(col1x, rowY + 244, 'Hit a pedestrian → Loan Shark\nbails you out → drive-by crew\nchases you. Pay off your debt!', bStyle);
-
-    // ── Right column: Tips ──
-    this.add.text(col2x, rowY,      '📈 SCORING',     hStyle);
-    this.add.text(col2x, rowY + 24, 'Score = time × high level\nHigher = more points\nbut harder to drive', bStyle);
-
-    this.add.text(col2x, rowY + 100, '🌿 GETTING HIGH', hStyle);
-    this.add.text(col2x, rowY + 124, 'Smoke between shifts or\nbuy from the corner store.\nThe higher you get, the\nmore your car serpentines!', bStyle);
-
-    this.add.text(col2x, rowY + 220, '💡 TIPS',        hStyle);
-    this.add.text(col2x, rowY + 244, '⛽ Gas station heals HP\n🏥 Hospital = ambulance drop-off\n🍕 Pizza HQ = pizza pick-up\nFollow the arrow to your job', bStyle);
-
-    // Divider
-    const div = this.add.graphics();
-    div.lineStyle(1, 0x225533, 0.6);
-    div.lineBetween(W / 2 - 10, rowY, W / 2 - 10, rowY + 340);
-
     // Start button
-    const btn = this.add.rectangle(W / 2, H - 52, 260, 56, 0x007733)
+    const btn = this.add.rectangle(W / 2, H - 100, 260, 60, 0x007733)
       .setInteractive({ useHandCursor: true })
       .setStrokeStyle(2, 0x00ff88);
-    const btnTxt = this.add.text(W / 2, H - 52, '🌿  START SMOKING', {
-      fontSize: '22px', fontFamily: 'Arial Black, Arial', color: '#ffffff'
+    const btnTxt = this.add.text(W / 2, H - 100, 'START', {
+      fontSize: '20px', fontFamily: PIXEL_FONT, color: '#ffffff'
     }).setOrigin(0.5);
 
     btn.on('pointerover', () => { btn.setFillStyle(0x00aa44); btnTxt.setColor('#ccffcc'); });
@@ -351,7 +349,7 @@ class GameOverScene extends Phaser.Scene {
 
     this.add.rectangle(W / 2, H / 2, W, H, 0x080808);
     this.add.text(W / 2, 120, 'GAME OVER', {
-      fontSize: '72px', fontFamily: 'Arial Black, Arial',
+      fontSize: '44px', fontFamily: PIXEL_FONT,
       color: '#ff3333', stroke: '#550000', strokeThickness: 8
     }).setOrigin(0.5);
 
@@ -360,7 +358,7 @@ class GameOverScene extends Phaser.Scene {
     }).setOrigin(0.5);
 
     this.add.text(W / 2, 275, `Score: ${Math.floor(this.finalScore)}`, {
-      fontSize: '38px', fontFamily: 'Arial Black, Arial', color: '#00ff88'
+      fontSize: '30px', fontFamily: PIXEL_FONT, color: '#00ff88'
     }).setOrigin(0.5);
 
     if (isNewBest) {
@@ -386,7 +384,7 @@ class GameOverScene extends Phaser.Scene {
     const btn = this.add.rectangle(W / 2, H - 100, 200, 54, 0x007733)
       .setInteractive({ useHandCursor: true });
     this.add.text(W / 2, H - 100, 'PLAY AGAIN', {
-      fontSize: '20px', fontFamily: 'Arial Black, Arial', color: '#fff'
+      fontSize: '15px', fontFamily: PIXEL_FONT, color: '#fff'
     }).setOrigin(0.5);
 
     btn.on('pointerover', () => btn.setFillStyle(0x00aa44));
@@ -432,7 +430,7 @@ class TimeOffScene extends Phaser.Scene {
       this.makeCard(xs[0], H / 2, 'SLEEP', 'FREE\n+40 Energy',              0x1a3a6a, 'sleep',   this.energy < 100,         200);
       this.makeCard(xs[1], H / 2, 'EAT',   `-$${EAT_COST}\n+Hunger & Energy`,0x6a3010, 'eat',   this.money >= EAT_COST,    200);
       this.makeCard(xs[2], H / 2, 'SMOKE', `-$${SMOKE_COST}\n+${HIGH_PER_SMOKE}% High`, 0x0f4a22, 'smoke', this.money >= SMOKE_COST, 200);
-      this.makeCard(xs[3], H / 2, 'PAY\nDEBT', `-$${Math.floor(this.debt)}\nCall off crew`, 0x6a1a1a, 'paydebt', this.money >= this.debt, 200);
+      this.makeCard(xs[3], H / 2, 'PAY\nDEBT', `Pay $${Math.min(Math.floor(this.money), Math.floor(this.debt))}\nof $${Math.floor(this.debt)} owed`, 0x6a1a1a, 'paydebt', this.money > 0, 200);
     } else {
       this.makeCard(W / 2 - 300, H / 2, 'SLEEP', 'FREE\n+40 Energy',              0x1a3a6a, 'sleep', this.energy < 100);
       this.makeCard(W / 2,       H / 2, 'EAT',   `-$${EAT_COST}\n+Hunger & Energy`,0x6a3010, 'eat',  this.money >= EAT_COST);
@@ -496,12 +494,12 @@ class UIScene extends Phaser.Scene {
 
     // ── HUD texts ──
     this.moneyText = this.add.text(W - 12, 10, '$100', {
-      fontSize: '22px', fontFamily: 'Arial Black, Arial', color: '#ffdd00',
+      fontSize: '16px', fontFamily: PIXEL_FONT, color: '#ffdd00',
       stroke: '#000', strokeThickness: 3
     }).setOrigin(1, 0).setScrollFactor(0);
 
     this.scoreText = this.add.text(W - 12, 38, 'Score: 0', {
-      fontSize: '15px', fontFamily: 'Arial', color: '#88ff88',
+      fontSize: '11px', fontFamily: PIXEL_FONT, color: '#88ff88',
       stroke: '#000', strokeThickness: 2
     }).setOrigin(1, 0).setScrollFactor(0);
 
@@ -602,7 +600,7 @@ class UIScene extends Phaser.Scene {
       .setScrollFactor(0).setDepth(121).setStrokeStyle(2, 0x00ff88).setVisible(false);
 
     const helpLines = [
-      ['🎮 CONTROLS',       'WASD / Arrows = drive    E = use gas station / store'],
+      ['🎮 CONTROLS',       'WASD / Arrows = drive    SPACE = brake    E = gas / store'],
       ['💼 JOBS',           'Pick up & deliver pizza or ambulance patients for cash'],
       ['🌿 GETTING HIGH',   'Smoke weed to raise your high meter — score = high × time'],
       ['🚗 SERPENTINE',     'The higher you are, the more your car sways & jerks'],
@@ -686,7 +684,7 @@ class UIScene extends Phaser.Scene {
     if (this.highLevel > 65) fx.push('Paranoid');
     if (this.highLevel > 82) fx.push('Controls flip');
     if (this.highLevel > 92) fx.push('BLAZED AF');
-    if (this.debt > 0)       fx.push('Under fire');
+    if (d.hunted)            fx.push('Under fire');
     this.fxText.setText(fx.join('\n'));
 
     this.updateVignette();
@@ -815,7 +813,9 @@ class GameScene extends Phaser.Scene {
     this.npcs       = this.physics.add.group();
     this.bullets    = this.physics.add.group();
     this.hitmen     = this.physics.add.group();
-    this.hitmanDelay = 30000; // 30s grace period before hitmen appear
+    this.hunted      = false;  // is the current shift a hunted (crew active) shift
+    this.nightsOwed  = 0;      // night shifts started while still in debt
+    this.invulnUntil = 0;      // i-frame timestamp after a ram
 
     this.buildTextures();
     this.buildWorld();
@@ -830,9 +830,10 @@ class GameScene extends Phaser.Scene {
       left:  this.input.keyboard.addKey('A'),
       right: this.input.keyboard.addKey('D'),
     };
-    this.eKey   = this.input.keyboard.addKey('E');
-    this.pKey   = this.input.keyboard.addKey('P');
-    this.paused = false;
+    this.eKey     = this.input.keyboard.addKey('E');
+    this.pKey     = this.input.keyboard.addKey('P');
+    this.brakeKey = this.input.keyboard.addKey('SPACE');
+    this.paused   = false;
 
     this.physics.world.setBounds(0, 0, WORLD_W, WORLD_H);
     this.cameras.main.setBounds(0, 0, WORLD_W, WORLD_H);
@@ -856,7 +857,6 @@ class GameScene extends Phaser.Scene {
     this.scene.launch('UI');
 
     SFX.init();
-    SFX.startEngine();
     SFX.startMusic();
 
     this.time.delayedCall(1800, () => this.startNewShift());
@@ -1035,31 +1035,7 @@ class GameScene extends Phaser.Scene {
     dmG.destroy();
   }
 
-  drawCar(g, bodyColor, isAmb, isCop) {
-    g.fillStyle(0x111111);
-    g.fillRect(0, 4, 5, 12); g.fillRect(31, 4, 5, 12);
-    g.fillRect(0, 38, 5, 12); g.fillRect(31, 38, 5, 12);
-
-    g.fillStyle(bodyColor);
-    g.fillRect(5, 2, 26, 52);
-
-    if (isCop) {
-      g.fillStyle(0x0033cc); g.fillRect(5, 18, 26, 20);
-      g.fillStyle(0xff0000); g.fillRect(7, 0, 10, 5);
-      g.fillStyle(0x0000ff); g.fillRect(19, 0, 10, 5);
-    }
-
-    g.fillStyle(0x88ccff, 0.8); g.fillRect(8, 6, 20, 16);
-    g.fillStyle(0x88ccff, 0.5); g.fillRect(8, 36, 20, 12);
-    g.fillStyle(0xffffcc); g.fillRect(7, 2, 7, 4); g.fillRect(22, 2, 7, 4);
-    g.fillStyle(0xff2222); g.fillRect(7, 50, 7, 4); g.fillRect(22, 50, 7, 4);
-
-    if (isAmb) {
-      g.fillStyle(0xff0000); g.fillRect(16, 18, 4, 16); g.fillRect(10, 24, 16, 4);
-      g.fillStyle(0x0044ff); g.fillRect(8, 2, 10, 3);
-      g.fillStyle(0xff0000); g.fillRect(18, 2, 10, 3);
-    }
-  }
+  drawCar(g, bodyColor, isAmb, isCop) { drawCarShape(g, bodyColor, isAmb, isCop); }
 
   /* ── Player ── */
   buildPlayer() {
@@ -1142,10 +1118,38 @@ class GameScene extends Phaser.Scene {
     this.pickupMarker.setPosition(this.pickupDest.x, this.pickupDest.y - 45);
     this.pickupMarker.setVisible(true);
     this.dropoffMarker.setVisible(false);
+
+    // Loan shark's crew hunts at night while you owe — and day+night once ignored too long
+    this.hunted = false;
+    this.hitmen.clear(true, true);
+    this.bullets.clear(true, true);
+    if (this.hasLoanShark && this.debt > 0) {
+      const night = this.isNight();
+      if (night) this.nightsOwed++;
+      const boldDay = !night && this.nightsOwed >= BOLD_NIGHTS;
+      if (night || boldDay) {
+        this.hunted = true;
+        const cap = boldDay ? 3 : 2;
+        this.time.delayedCall(2500, () => this.showStatus(boldDay
+          ? '🦈 You ignored the debt too long — the crew hunts you in broad daylight now!'
+          : '🌙 Night shift — the crew is hunting you. Lose them or pay your debt!'));
+        for (let i = 0; i < cap; i++) {
+          this.time.delayedCall(6000 + i * 8000, () => { if (this.isOnShift && this.hunted) this.spawnHitman(); });
+        }
+      }
+    }
+  }
+
+  isNight() {
+    const sunHeight = Math.cos((this.timeOfDay - 0.5) * Math.PI * 2);
+    return Math.max(0, -sunHeight) * 0.72 > 0.05;
   }
 
   endShift(success) {
     this.isOnShift = false;
+    this.hunted = false;
+    this.hitmen.clear(true, true);
+    this.bullets.clear(true, true);
     this.pickupMarker.setVisible(false);
     this.dropoffMarker.setVisible(false);
     this.arrowText.setText('');
@@ -1162,7 +1166,7 @@ class GameScene extends Phaser.Scene {
         const pmt = Math.min(80, this.debt);
         this.debt  -= pmt;
         this.money -= pmt;
-        if (this.debt <= 0) { this.debt = 0; this.hasLoanShark = false; }
+        if (this.debt <= 0) { this.debt = 0; this.hasLoanShark = false; this.nightsOwed = 0; }
       }
       // Spawn 3 more pedestrians each shift, cap at 40
       const aliveCount = this.npcs.getChildren().filter(n => n.alive).length;
@@ -1216,15 +1220,22 @@ class GameScene extends Phaser.Scene {
         }
         break;
       case 'paydebt':
-        if (this.debt > 0 && this.money >= this.debt) {
-          this.money -= this.debt;
-          this.debt = 0;
-          this.hasLoanShark = false;
-          this.hitmanDelay = 0;
-          this.hitmen.clear(true, true);
-          this.bullets.clear(true, true);
-          this.cameras.main.flash(500, 0, 200, 80);
-          this.showStatus('💸 Debt paid — crew called off!');
+        if (this.debt > 0 && this.money > 0) {
+          const pmt = Math.min(this.money, this.debt);
+          this.money -= pmt;
+          this.debt  -= pmt;
+          if (this.debt <= 0) {
+            this.debt = 0;
+            this.hasLoanShark = false;
+            this.nightsOwed = 0;
+            this.hunted = false;
+            this.hitmen.clear(true, true);
+            this.bullets.clear(true, true);
+            this.cameras.main.flash(500, 0, 200, 80);
+            this.showStatus('💸 Debt paid in full — crew called off!');
+          } else {
+            this.showStatus(`💸 Paid $${Math.floor(pmt)} — $${Math.floor(this.debt)} still owed`);
+          }
         }
         break;
     }
@@ -1257,10 +1268,10 @@ class GameScene extends Phaser.Scene {
     this.showStatus('💀 VEHICULAR MANSLAUGHTER!');
 
     if (!this.hasLoanShark) {
-      this.time.delayedCall(1800, () => this.activateLoanShark());
+      this.time.delayedCall(1500, () => this.activateLoanShark());
     } else {
-      this.pendingDebt = (this.pendingDebt || 0) + 2500;
-      this.showStatus(`💀 MANSLAUGHTER! +$2500 owed after shift`);
+      this.pendingDebt = (this.pendingDebt || 0) + DEBT_REPEAT;
+      this.showStatus(`💀 MANSLAUGHTER! +$${DEBT_REPEAT} owed after shift`);
     }
   }
 
@@ -1268,9 +1279,9 @@ class GameScene extends Phaser.Scene {
     if (!bullet.active) return;
     bullet.destroy();
     this.cameras.main.shake(180, 0.012);
-    this.playerSpeed *= 0.55;
+    this.playerSpeed *= 0.5;
     SFX.playBulletWhiz();
-    this.takeDamage(18, false);
+    this.takeDamage(15, false);
     const msgs = ['🔫 They got you!', '💥 Shot!', '😱 Watch out!', '🩸 Hit!'];
     this.showStatus(Phaser.Utils.Array.GetRandom(msgs));
   }
@@ -1284,11 +1295,11 @@ class GameScene extends Phaser.Scene {
 
   activateLoanShark() {
     this.hasLoanShark = true;
-    this.debt = 3500;
-    this.hitmanDelay = 30000;
+    this.debt = DEBT_PER_KILL;
+    this.nightsOwed = 0;
     this.money = Math.max(0, this.money) + 300;
     this.cameras.main.flash(800, 180, 0, 0);
-    this.showStatus('🦈 Loan Shark bailed you out! $3500 debt — they\'re sending someone!');
+    this.showStatus(`🦈 Loan Shark bailed you out! $${DEBT_PER_KILL} debt — pay it down or the crew hunts you after dark.`);
   }
 
   spawnHitman() {
@@ -1319,10 +1330,22 @@ class GameScene extends Phaser.Scene {
 
   hitByHitman(player, hitman) {
     if (!this.gameActive) return;
+    if (this.time.now < this.invulnUntil) return;
+    this.invulnUntil = this.time.now + HITMAN_IFRAMES;
+
+    // You smash through the car — clears one attacker but hurts
+    const ang = Math.atan2(this.player.y - hitman.y, this.player.x - hitman.x);
     hitman.destroy();
-    this.cameras.main.flash(600, 180, 0, 0);
-    this.cameras.main.shake(500, 0.03);
-    this.triggerGameOver('The loan shark\'s crew caught you.');
+    this.player.x += Math.cos(ang) * 28;
+    this.player.y += Math.sin(ang) * 28;
+    this.playerSpeed *= -0.3;
+    this.cameras.main.flash(400, 180, 0, 0);
+    this.cameras.main.shake(400, 0.03);
+    SFX.playImpact(0.9);
+    this.tweens.add({ targets: this.player, alpha: 0.3, duration: 120, yoyo: true, repeat: 4,
+      onComplete: () => this.player.setAlpha(1) });
+    this.takeDamage(35, false);
+    if (this.gameActive) this.showStatus('💥 Rammed the crew off — but it cost you!');
   }
 
   /* ── High Effects ── */
@@ -1544,7 +1567,14 @@ class GameScene extends Phaser.Scene {
     const ACCEL   = 290;
     const FRICTION = 320;
 
-    if (goUp) {
+    const BRAKE = 720;
+
+    if (this.brakeKey.isDown) {
+      // Hard brake toward a stop — no reversing
+      const dir = this.playerSpeed > 0 ? -1 : 1;
+      this.playerSpeed += dir * BRAKE * dt;
+      if (Math.abs(this.playerSpeed) < BRAKE * dt) this.playerSpeed = 0;
+    } else if (goUp) {
       this.playerSpeed = Math.min(this.playerSpeed + ACCEL * dt * inv, MAX_SPD);
     } else if (goDown) {
       this.playerSpeed = Math.max(this.playerSpeed - FRICTION * dt * inv, -MAX_SPD * 0.45);
@@ -1554,10 +1584,17 @@ class GameScene extends Phaser.Scene {
       if (Math.abs(this.playerSpeed) < 4) this.playerSpeed = 0;
     }
 
+    // Momentum/drag: ease actual velocity toward the facing direction instead of
+    // snapping to it, so the car carries weight — slides into turns, coasts to stops.
     const rad = Phaser.Math.DegToRad(this.playerAngle - 90);
+    const targetVX = Math.cos(rad) * this.playerSpeed;
+    const targetVY = Math.sin(rad) * this.playerSpeed;
+    const GRIP_TAU = 0.28;                          // seconds — higher = more slide/drag
+    const grip = 1 - Math.exp(-dt / GRIP_TAU);
+    const v = this.player.body.velocity;
     this.player.setVelocity(
-      Math.cos(rad) * this.playerSpeed,
-      Math.sin(rad) * this.playerSpeed
+      v.x + (targetVX - v.x) * grip,
+      v.y + (targetVY - v.y) * grip
     );
     this.player.setAngle(this.playerAngle);
 
@@ -1567,7 +1604,6 @@ class GameScene extends Phaser.Scene {
 
     this.applyHighEffects(delta);
 
-    SFX.updateEngine(Math.abs(this.playerSpeed), MAX_SPD);
 
     // NPCs
     this.npcList.forEach(npc => {
@@ -1583,37 +1619,22 @@ class GameScene extends Phaser.Scene {
       npc.setVelocity(vx, vy);
     });
 
-    // Hitmen chase & drive-by (grace period after loan shark activates)
-    if (this.hasLoanShark) {
-      if (this.hitmanDelay > 0) {
-        const prev = this.hitmanDelay;
-        this.hitmanDelay -= delta;
-        if ((prev > 10000 && this.hitmanDelay <= 10000) ||
-            (prev > 5000  && this.hitmanDelay <= 5000)) {
-          const secs = Math.ceil(this.hitmanDelay / 1000);
-          this.showStatus(`⚠️ They're coming in ${secs}s — pay your debt!`);
+    // Hitmen chase & drive-by — only during a hunted shift
+    if (this.hunted) {
+      this.hitmen.getChildren().forEach(h => {
+        if (!h.active) return;
+        const dx = this.player.x - h.x;
+        const dy = this.player.y - h.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        const angle = Math.atan2(dy, dx);
+        h.setVelocity(Math.cos(angle) * h.speed, Math.sin(angle) * h.speed);
+        h.setAngle(angle * Phaser.Math.RAD_TO_DEG + 90);
+        // Fire drive-by shots when close
+        if (dist < 260 && time - h.lastShotTime > 1000) {
+          this._fireDriveby(h);
+          h.lastShotTime = time;
         }
-        if (this.hitmanDelay <= 0) {
-          this.spawnHitman();
-          this.showStatus('🚗 Drive-by crew spotted! LOSE THEM!');
-        }
-      } else {
-        // Chase logic
-        this.hitmen.getChildren().forEach(h => {
-          if (!h.active) return;
-          const dx = this.player.x - h.x;
-          const dy = this.player.y - h.y;
-          const dist = Math.sqrt(dx * dx + dy * dy);
-          const angle = Math.atan2(dy, dx);
-          h.setVelocity(Math.cos(angle) * h.speed, Math.sin(angle) * h.speed);
-          h.setAngle(angle * Phaser.Math.RAD_TO_DEG + 90);
-          // Fire drive-by shots when close
-          if (dist < 260 && time - h.lastShotTime > 1000) {
-            this._fireDriveby(h);
-            h.lastShotTime = time;
-          }
-        });
-      }
+      });
     }
 
     this.checkJobProx();
@@ -1629,6 +1650,7 @@ class GameScene extends Phaser.Scene {
       money:      this.money,
       score:      this.score,
       debt:       this.debt,
+      hunted:     this.hunted,
       health:     this.health,
       timeOfDay:  this.timeOfDay,
       jobStatus:  this.getJobStatus(),
@@ -1646,15 +1668,25 @@ class GameScene extends Phaser.Scene {
 /* ═══════════════════════════════════════════
    BOOT
 ═══════════════════════════════════════════ */
-new Phaser.Game({
-  type:   Phaser.AUTO,
-  width:  W,
-  height: H,
-  backgroundColor: '#0d1117',
-  scale: {
-    mode:       Phaser.Scale.FIT,
-    autoCenter: Phaser.Scale.CENTER_BOTH,
-  },
-  physics: { default: 'arcade', arcade: { gravity: { y: 0 }, debug: false } },
-  scene:  [MenuScene, GameScene, UIScene, TimeOffScene, GameOverScene]
-});
+function bootGame() {
+  new Phaser.Game({
+    type:   Phaser.AUTO,
+    width:  W,
+    height: H,
+    backgroundColor: '#0d1117',
+    pixelArt: true,   // nearest-neighbour scaling → crisp 8-bit look
+    scale: {
+      mode:       Phaser.Scale.FIT,
+      autoCenter: Phaser.Scale.CENTER_BOTH,
+    },
+    physics: { default: 'arcade', arcade: { gravity: { y: 0 }, debug: false } },
+    scene:  [MenuScene, GameScene, UIScene, TimeOffScene, GameOverScene]
+  });
+}
+
+// Wait for the pixel font so canvas text renders in it (not a fallback), then boot.
+if (document.fonts && document.fonts.load) {
+  document.fonts.load('16px "Press Start 2P"').then(bootGame).catch(bootGame);
+} else {
+  bootGame();
+}
