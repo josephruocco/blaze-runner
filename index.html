@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <title>Blaze Runner</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
@@ -10,10 +11,26 @@
     body { background: #000; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
     #err { position: fixed; top: 0; left: 0; right: 0; background: #c00; color: #fff;
            font: 14px monospace; padding: 8px 12px; z-index: 9999; display: none; white-space: pre-wrap; }
+    /* Ask phones held vertically to rotate — the game is 4:3 and unplayably small in portrait */
+    #rotate { display: none; }
+    @media (orientation: portrait) and (pointer: coarse) {
+      #rotate { display: flex; position: fixed; inset: 0; z-index: 9998; background: #0a0a0b;
+        color: #fff; flex-direction: column; align-items: center; justify-content: center;
+        text-align: center; gap: 18px; padding: 32px; font-family: Arial, sans-serif; }
+      #rotate .ico { font-size: 64px; animation: rot 2s ease-in-out infinite; }
+      #rotate b { font-size: 22px; letter-spacing: 1px; }
+      #rotate span { font-size: 15px; color: #9ab; }
+    }
+    @keyframes rot { 0%,40% { transform: rotate(0); } 60%,100% { transform: rotate(-90deg); } }
   </style>
 </head>
 <body>
   <div id="err"></div>
+  <div id="rotate">
+    <div class="ico">📱</div>
+    <b>ROTATE YOUR PHONE</b>
+    <span>Blaze Runner plays best in landscape</span>
+  </div>
   <script>
     window.onerror = function(msg, src, line, col, err) {
       var d = document.getElementById('err');

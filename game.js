@@ -664,27 +664,39 @@ class UIScene extends Phaser.Scene {
   buildTouchControls() {
     // Steering thumb on the left, gas/brake on the right — both feed the same
     // movement flags the keyboard uses, via Bus → GameScene.touch.
-    const mk = (x, y, label, ctrl, color) => {
-      const r = 46;
-      const btn = this.add.circle(x, y, r, color, 0.32)
+    const mkBtn = (x, y, r, label, fs, color) => {
+      const btn = this.add.circle(x, y, r, color, 0.34)
         .setScrollFactor(0).setDepth(160)
-        .setStrokeStyle(3, 0xffffff, 0.5)
+        .setStrokeStyle(3, 0xffffff, 0.55)
         .setInteractive({ useHandCursor: true });
       this.add.text(x, y, label, {
-        fontSize: '30px', fontFamily: 'Arial Black, Arial', color: '#ffffff'
+        fontSize: fs + 'px', fontFamily: 'Arial Black, Arial', color: '#ffffff'
       }).setOrigin(0.5).setScrollFactor(0).setDepth(161);
-      const set = (v) => { btn.setFillStyle(color, v ? 0.6 : 0.32); Bus.emit('touch', ctrl, v); };
+      return btn;
+    };
+    // Held button: flag true while pressed (steer / gas / brake)
+    const hold = (x, y, r, label, ctrl, color, fs = 34) => {
+      const btn = mkBtn(x, y, r, label, fs, color);
+      const set = (v) => { btn.setFillStyle(color, v ? 0.7 : 0.34); Bus.emit('touch', ctrl, v); };
       btn.on('pointerdown', () => set(true));
       btn.on('pointerup',   () => set(false));
       btn.on('pointerout',  () => set(false));
-      return btn;
+    };
+    // Tap button: one-shot pulse, GameScene resets the flag (use / pause)
+    const tap = (x, y, r, label, ctrl, color, fs = 20) => {
+      const btn = mkBtn(x, y, r, label, fs, color);
+      btn.on('pointerdown', () => { btn.setFillStyle(color, 0.7); Bus.emit('touch', ctrl, true); });
+      btn.on('pointerup',   () => btn.setFillStyle(color, 0.34));
+      btn.on('pointerout',  () => btn.setFillStyle(color, 0.34));
     };
 
-    const bY = H - 78;
-    mk(84,        bY, '◀', 'left',  0x2266cc);
-    mk(200,       bY, '▶', 'right', 0x2266cc);
-    mk(W - 200,   bY, '■', 'brake', 0xcc3333);
-    mk(W - 84,    bY, '▲', 'up',    0x22aa55);
+    const R = 54, bY = H - 96;
+    hold(96,       bY,       R, '◀', 'left',  0x2266cc);
+    hold(228,      bY,       R, '▶', 'right', 0x2266cc);
+    hold(W - 96,   bY,       R, '▲', 'up',    0x22aa55);
+    hold(W - 228,  bY,       R, '■', 'brake', 0xcc3333);
+    tap (W - 162,  bY - 132, 44, 'USE', 'interact', 0xddaa22, 18);
+    tap (58,       48,       32, '⏸',  'pause',    0x555566, 22);
   }
 
   onUpdate(d) {
@@ -854,7 +866,7 @@ class GameScene extends Phaser.Scene {
     this.hunted      = false;  // is the current shift a hunted (crew active) shift
     this.nightsOwed  = 0;      // night shifts started while still in debt
     this.invulnUntil = 0;      // i-frame timestamp after a ram
-    this.touch = { up: false, down: false, left: false, right: false, brake: false };
+    this.touch = { up: false, down: false, left: false, right: false, brake: false, interact: false, pause: false };
 
     this.buildTextures();
     this.buildWorld();
@@ -1463,7 +1475,7 @@ class GameScene extends Phaser.Scene {
       const dist = Phaser.Math.Distance.Between(this.player.x, this.player.y, pos.x, pos.y);
       if (dist < REACH_DIST + 80) {
         this.showStatusOnce(label);
-        if (Phaser.Input.Keyboard.JustDown(this.eKey)) action();
+        if (Phaser.Input.Keyboard.JustDown(this.eKey) || this.touch.interact) action();
       }
     };
 
@@ -1568,7 +1580,8 @@ class GameScene extends Phaser.Scene {
     if (!this.gameActive || this.isInTimeOff) return;
 
     // Pause toggle
-    if (Phaser.Input.Keyboard.JustDown(this.pKey)) {
+    if (Phaser.Input.Keyboard.JustDown(this.pKey) || this.touch.pause) {
+      this.touch.pause = false;
       this.paused = !this.paused;
       this.player.setVelocity(0, 0);
       Bus.emit('pause', this.paused);
@@ -1684,6 +1697,7 @@ class GameScene extends Phaser.Scene {
 
     this.checkJobProx();
     this.checkSpecialSpots();
+    this.touch.interact = false;   // one-shot: consumed each frame
 
     if (this.isOnShift) {
       this.shiftTimer -= dt;
