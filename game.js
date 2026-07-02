@@ -481,6 +481,9 @@ class UIScene extends Phaser.Scene {
     this.score     = 0;
     this.debt      = 0;
     this.mmData    = null;
+    this.isTouch   = this.sys.game.device.input.touch ||
+                     (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) ||
+                     /[?&]touch/.test(location.search);  // ?touch forces mobile controls
 
     // ── High meter ──
     const mX = 34, mCY = H / 2, mH = 280;
@@ -540,45 +543,47 @@ class UIScene extends Phaser.Scene {
     this.vignette    = this.add.graphics().setScrollFactor(0).setDepth(90);
     this.tintOverlay = this.add.rectangle(W / 2, H / 2, W, H, 0x00aa44, 0).setScrollFactor(0).setDepth(89);
 
-    // ── Minimap (bottom-right) ──
-    const MM = 180;
-    const MX = W - MM - 10, MY = H - MM - 10;
-    const mmScale = MM / WORLD_W;
-    this.mmX = MX; this.mmY = MY; this.mmScale = mmScale; this.mmSize = MM;
+    // ── Minimap (bottom-right) — hidden on touch to make room for controls ──
+    this.mmDots = null;
+    if (!this.isTouch) {
+      const MM = 180;
+      const MX = W - MM - 10, MY = H - MM - 10;
+      const mmScale = MM / WORLD_W;
+      this.mmX = MX; this.mmY = MY; this.mmScale = mmScale; this.mmSize = MM;
 
-    this.add.rectangle(MX + MM/2, MY + MM/2, MM + 4, MM + 4, 0x000000, 0.85).setScrollFactor(0).setDepth(94);
+      this.add.rectangle(MX + MM/2, MY + MM/2, MM + 4, MM + 4, 0x000000, 0.85).setScrollFactor(0).setDepth(94);
 
-    // Draw static road grid on minimap once
-    const mmBg = this.add.graphics().setScrollFactor(0).setDepth(95);
-    for (let r = 0; r < ROWS; r += RI) {
-      mmBg.fillStyle(0x666677);
-      mmBg.fillRect(MX, MY + r * mmScale, MM, TILE * 2 * mmScale);
+      // Draw static road grid on minimap once
+      const mmBg = this.add.graphics().setScrollFactor(0).setDepth(95);
+      for (let r = 0; r < ROWS; r += RI) {
+        mmBg.fillStyle(0x666677);
+        mmBg.fillRect(MX, MY + r * mmScale, MM, TILE * 2 * mmScale);
+      }
+      for (let c = 0; c < COLS; c += RI) {
+        mmBg.fillStyle(0x666677);
+        mmBg.fillRect(MX + c * mmScale, MY, TILE * 2 * mmScale, MM);
+      }
+
+      // Static POI dots: hospital (sc=0,sr=0) and pizzeria (sc=2,sr=2)
+      const hospCX = (0 * RI + 2 + (RI - 2) / 2) * TILE;
+      const hospCY = (0 * RI + 2 + (RI - 2) / 2) * TILE;
+      const pizzCX = (2 * RI + 2 + (RI - 2) / 2) * TILE;
+      const pizzCY = (2 * RI + 2 + (RI - 2) / 2) * TILE;
+      mmBg.fillStyle(0xff4444); mmBg.fillCircle(MX + hospCX * mmScale, MY + hospCY * mmScale, 4);
+      mmBg.fillStyle(0xff8800); mmBg.fillCircle(MX + pizzCX * mmScale, MY + pizzCY * mmScale, 4);
+
+      this.add.text(MX + MM / 2, MY - 12, 'MAP', {
+        fontSize: '10px', color: '#aaaaaa', fontFamily: 'Arial'
+      }).setOrigin(0.5).setScrollFactor(0).setDepth(96);
+
+      // Legend
+      this.add.text(MX, MY + MM + 4, '🔴 Hosp  🟠 Pizza  ⚪ You  🟢/🔴 Job', {
+        fontSize: '9px', color: '#888888', fontFamily: 'Arial'
+      }).setScrollFactor(0).setDepth(96);
+
+      // Dynamic dots layer
+      this.mmDots = this.add.graphics().setScrollFactor(0).setDepth(97);
     }
-    for (let c = 0; c < COLS; c += RI) {
-      mmBg.fillStyle(0x666677);
-      mmBg.fillRect(MX + c * mmScale, MY, TILE * 2 * mmScale, MM);
-    }
-
-    // Static POI dots: hospital (sc=0,sr=0) and pizzeria (sc=2,sr=2)
-    // With wider roads (2 tiles), bx=(sc*RI+2)*TILE, bw=(RI-2)*TILE=384, cx=bx+bw/2
-    const hospCX = (0 * RI + 2 + (RI - 2) / 2) * TILE;
-    const hospCY = (0 * RI + 2 + (RI - 2) / 2) * TILE;
-    const pizzCX = (2 * RI + 2 + (RI - 2) / 2) * TILE;
-    const pizzCY = (2 * RI + 2 + (RI - 2) / 2) * TILE;
-    mmBg.fillStyle(0xff4444); mmBg.fillCircle(MX + hospCX * mmScale, MY + hospCY * mmScale, 4);
-    mmBg.fillStyle(0xff8800); mmBg.fillCircle(MX + pizzCX * mmScale, MY + pizzCY * mmScale, 4);
-
-    this.add.text(MX + MM / 2, MY - 12, 'MAP', {
-      fontSize: '10px', color: '#aaaaaa', fontFamily: 'Arial'
-    }).setOrigin(0.5).setScrollFactor(0).setDepth(96);
-
-    // Legend
-    this.add.text(MX, MY + MM + 4, '🔴 Hosp  🟠 Pizza  ⚪ You  🟢/🔴 Job', {
-      fontSize: '9px', color: '#888888', fontFamily: 'Arial'
-    }).setScrollFactor(0).setDepth(96);
-
-    // Dynamic dots layer
-    this.mmDots = this.add.graphics().setScrollFactor(0).setDepth(97);
 
     // ── Mute button ──
     this.muteBtn = this.add.text(W - 48, H - 14, '🔊', {
@@ -645,12 +650,41 @@ class UIScene extends Phaser.Scene {
       align: 'center', stroke: '#000', strokeThickness: 4, lineSpacing: 10
     }).setOrigin(0.5).setScrollFactor(0).setDepth(151).setVisible(false);
 
+    // ── Touch controls (mobile only) ──
+    if (this.isTouch) this.buildTouchControls();
+
     Bus.on('ui-update', this.onUpdate, this);
     Bus.on('paranoid',  this.showParanoid, this);
     Bus.on('pause', (p) => {
       this.pauseOverlay.setVisible(p);
       this.pauseText.setVisible(p);
     });
+  }
+
+  buildTouchControls() {
+    // Steering thumb on the left, gas/brake on the right — both feed the same
+    // movement flags the keyboard uses, via Bus → GameScene.touch.
+    const mk = (x, y, label, ctrl, color) => {
+      const r = 46;
+      const btn = this.add.circle(x, y, r, color, 0.32)
+        .setScrollFactor(0).setDepth(160)
+        .setStrokeStyle(3, 0xffffff, 0.5)
+        .setInteractive({ useHandCursor: true });
+      this.add.text(x, y, label, {
+        fontSize: '30px', fontFamily: 'Arial Black, Arial', color: '#ffffff'
+      }).setOrigin(0.5).setScrollFactor(0).setDepth(161);
+      const set = (v) => { btn.setFillStyle(color, v ? 0.6 : 0.32); Bus.emit('touch', ctrl, v); };
+      btn.on('pointerdown', () => set(true));
+      btn.on('pointerup',   () => set(false));
+      btn.on('pointerout',  () => set(false));
+      return btn;
+    };
+
+    const bY = H - 78;
+    mk(84,        bY, '◀', 'left',  0x2266cc);
+    mk(200,       bY, '▶', 'right', 0x2266cc);
+    mk(W - 200,   bY, '■', 'brake', 0xcc3333);
+    mk(W - 84,    bY, '▲', 'up',    0x22aa55);
   }
 
   onUpdate(d) {
@@ -820,6 +854,7 @@ class GameScene extends Phaser.Scene {
     this.hunted      = false;  // is the current shift a hunted (crew active) shift
     this.nightsOwed  = 0;      // night shifts started while still in debt
     this.invulnUntil = 0;      // i-frame timestamp after a ram
+    this.touch = { up: false, down: false, left: false, right: false, brake: false };
 
     this.buildTextures();
     this.buildWorld();
@@ -862,6 +897,7 @@ class GameScene extends Phaser.Scene {
     }).setOrigin(0.5).setDepth(60).setScrollFactor(0);
 
     Bus.on('timeoff', this.onTimeOffChoice, this);
+    Bus.on('touch', (c, v) => { this.touch[c] = v; }, this);
 
     this.scene.launch('UI');
 
@@ -1542,10 +1578,10 @@ class GameScene extends Phaser.Scene {
     const dt  = delta / 1000;
     const inv = this.controlsInverted ? -1 : 1;
 
-    const goUp    = this.cursors.up.isDown    || this.moveKeys.KeyW;
-    const goDown  = this.cursors.down.isDown  || this.moveKeys.KeyS;
-    const goLeft  = this.cursors.left.isDown  || this.moveKeys.KeyA;
-    const goRight = this.cursors.right.isDown || this.moveKeys.KeyD;
+    const goUp    = this.cursors.up.isDown    || this.moveKeys.KeyW || this.touch.up;
+    const goDown  = this.cursors.down.isDown  || this.moveKeys.KeyS || this.touch.down;
+    const goLeft  = this.cursors.left.isDown  || this.moveKeys.KeyA || this.touch.left;
+    const goRight = this.cursors.right.isDown || this.moveKeys.KeyD || this.touch.right;
 
     const TURN   = 145 * (this.turnMod || 1);
     if (Math.abs(this.playerSpeed) > 15) {
@@ -1578,7 +1614,7 @@ class GameScene extends Phaser.Scene {
 
     const BRAKE = 720;
 
-    if (this.brakeKey.isDown) {
+    if (this.brakeKey.isDown || this.touch.brake) {
       // Hard brake toward a stop — no reversing
       const dir = this.playerSpeed > 0 ? -1 : 1;
       this.playerSpeed += dir * BRAKE * dt;
