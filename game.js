@@ -697,8 +697,9 @@ class UIScene extends Phaser.Scene {
     };
 
     const bY = H - 108;
-    hold(W - 100,  bY,       58, '■',  'brake',    0xcc3333);
-    tap (W - 100,  bY - 140, 46, 'USE', 'interact', 0xddaa22, 18);
+    hold(W - 100,  bY,       60, '▲',  'up',       0x22aa55);   // gas
+    hold(W - 236,  bY,       54, '■',  'brake',    0xcc3333);
+    tap (W - 100,  bY - 142, 46, 'USE', 'interact', 0xddaa22, 18);
     tap (58,       48,       32, '⏸',  'pause',    0x555566, 22);
 
     this.buildJoystick();
@@ -1678,12 +1679,6 @@ class GameScene extends Phaser.Scene {
       const dir = this.playerSpeed > 0 ? -1 : 1;
       this.playerSpeed += dir * BRAKE * dt;
       if (Math.abs(this.playerSpeed) < BRAKE * dt) this.playerSpeed = 0;
-    } else if (usingStick) {
-      // Throttle scales with how far the stick is pushed
-      const target = MAX_SPD * this.touch.stickMag;
-      this.playerSpeed = (this.playerSpeed < target)
-        ? Math.min(this.playerSpeed + ACCEL * dt, target)
-        : Math.max(this.playerSpeed - FRICTION * dt, target);
     } else if (goUp) {
       this.playerSpeed = Math.min(this.playerSpeed + ACCEL * dt * inv, MAX_SPD);
     } else if (goDown) {
