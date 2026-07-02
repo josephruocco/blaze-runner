@@ -308,6 +308,10 @@ class MenuScene extends Phaser.Scene {
       }).setOrigin(0.5);
     }
 
+    this.add.text(W / 2, H - 34, '⚠ Photosensitivity warning: contains flashing, screen shake & motion that may cause dizziness.', {
+      fontSize: '12px', fontFamily: 'Arial', color: '#c9a24b'
+    }).setOrigin(0.5);
+
     // Start button
     const btn = this.add.rectangle(W / 2, H - 100, 260, 60, 0x007733)
       .setInteractive({ useHandCursor: true })
@@ -824,12 +828,17 @@ class GameScene extends Phaser.Scene {
     this.buildMarkers();
 
     this.cursors = this.input.keyboard.createCursorKeys();
-    this.wasd = {
-      up:    this.input.keyboard.addKey('W'),
-      down:  this.input.keyboard.addKey('S'),
-      left:  this.input.keyboard.addKey('A'),
-      right: this.input.keyboard.addKey('D'),
-    };
+    // Track WASD by physical key position (event.code) so it works on any keyboard
+    // layout — Phaser's addKey maps by keyCode, which breaks on AZERTY/Dvorak/etc.
+    this.moveKeys = { KeyW: false, KeyA: false, KeyS: false, KeyD: false };
+    this._onKeyDown = (e) => { if (e.code in this.moveKeys) this.moveKeys[e.code] = true; };
+    this._onKeyUp   = (e) => { if (e.code in this.moveKeys) this.moveKeys[e.code] = false; };
+    window.addEventListener('keydown', this._onKeyDown);
+    window.addEventListener('keyup',   this._onKeyUp);
+    this.events.once('shutdown', () => {
+      window.removeEventListener('keydown', this._onKeyDown);
+      window.removeEventListener('keyup',   this._onKeyUp);
+    });
     this.eKey     = this.input.keyboard.addKey('E');
     this.pKey     = this.input.keyboard.addKey('P');
     this.brakeKey = this.input.keyboard.addKey('SPACE');
@@ -1533,10 +1542,10 @@ class GameScene extends Phaser.Scene {
     const dt  = delta / 1000;
     const inv = this.controlsInverted ? -1 : 1;
 
-    const goUp    = this.cursors.up.isDown    || this.wasd.up.isDown;
-    const goDown  = this.cursors.down.isDown  || this.wasd.down.isDown;
-    const goLeft  = this.cursors.left.isDown  || this.wasd.left.isDown;
-    const goRight = this.cursors.right.isDown || this.wasd.right.isDown;
+    const goUp    = this.cursors.up.isDown    || this.moveKeys.KeyW;
+    const goDown  = this.cursors.down.isDown  || this.moveKeys.KeyS;
+    const goLeft  = this.cursors.left.isDown  || this.moveKeys.KeyA;
+    const goRight = this.cursors.right.isDown || this.moveKeys.KeyD;
 
     const TURN   = 145 * (this.turnMod || 1);
     if (Math.abs(this.playerSpeed) > 15) {
