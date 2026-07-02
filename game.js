@@ -2,7 +2,13 @@
 // Score by staying high. Work jobs, buy weed, dodge cops and bullets.
 
 /* ── Constants ─────────────────────────────── */
-const W = 1024, H = 768;
+const H = 768;
+// Width flexes to the device aspect ratio so the game fills the screen instead of
+// pillarboxing (especially landscape phones). Height stays fixed for a consistent
+// vertical scale. Clamped so it never goes narrower than the original 4:3 or absurdly wide.
+const _aspect = (typeof window !== 'undefined' && window.innerHeight)
+  ? window.innerWidth / window.innerHeight : 4 / 3;
+const W = Math.max(1024, Math.min(1792, Math.round(H * _aspect)));
 const TILE = 64;
 const RI = 8;
 const COLS = 32, ROWS = 32;
