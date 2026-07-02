@@ -668,8 +668,8 @@ class UIScene extends Phaser.Scene {
   }
 
   buildTouchControls() {
-    // Steering thumb on the left, gas/brake on the right — both feed the same
-    // movement flags the keyboard uses, via Bus → GameScene.touch.
+    this.input.addPointer(3);   // allow multi-touch: joystick + buttons at once
+
     const mkBtn = (x, y, r, label, fs, color) => {
       const btn = this.add.circle(x, y, r, color, 0.34)
         .setScrollFactor(0).setDepth(160)
@@ -680,7 +680,7 @@ class UIScene extends Phaser.Scene {
       }).setOrigin(0.5).setScrollFactor(0).setDepth(161);
       return btn;
     };
-    // Held button: flag true while pressed (steer / gas / brake)
+    // Held button: flag true while pressed (brake)
     const hold = (x, y, r, label, ctrl, color, fs = 34) => {
       const btn = mkBtn(x, y, r, label, fs, color);
       const set = (v) => { btn.setFillStyle(color, v ? 0.7 : 0.34); Bus.emit('touch', ctrl, v); };
@@ -696,13 +696,40 @@ class UIScene extends Phaser.Scene {
       btn.on('pointerout',  () => btn.setFillStyle(color, 0.34));
     };
 
-    const R = 54, bY = H - 96;
-    hold(96,       bY,       R, '◀', 'left',  0x2266cc);
-    hold(228,      bY,       R, '▶', 'right', 0x2266cc);
-    hold(W - 96,   bY,       R, '▲', 'up',    0x22aa55);
-    hold(W - 228,  bY,       R, '■', 'brake', 0xcc3333);
-    tap (W - 162,  bY - 132, 44, 'USE', 'interact', 0xddaa22, 18);
+    const bY = H - 108;
+    hold(W - 100,  bY,       58, '■',  'brake',    0xcc3333);
+    tap (W - 100,  bY - 140, 46, 'USE', 'interact', 0xddaa22, 18);
     tap (58,       48,       32, '⏸',  'pause',    0x555566, 22);
+
+    this.buildJoystick();
+  }
+
+  buildJoystick() {
+    // Left-thumb analog stick: push the direction you want to drive, further = faster.
+    const bx = 150, by = H - 160, baseR = 84, knobR = 42;
+    this.add.circle(bx, by, baseR, 0x2266cc, 0.16)
+      .setScrollFactor(0).setDepth(159).setStrokeStyle(3, 0xffffff, 0.4);
+    const knob = this.add.circle(bx, by, knobR, 0x3388ff, 0.5)
+      .setScrollFactor(0).setDepth(160).setStrokeStyle(3, 0xffffff, 0.6);
+
+    // Grab zone a bit larger than the base so the thumb catches it easily
+    const zone = this.add.zone(bx, by, baseR * 2.8, baseR * 2.8)
+      .setScrollFactor(0).setInteractive();
+
+    let pid = null;
+    const update = (px, py) => {
+      let dx = px - bx, dy = py - by;
+      const d = Math.hypot(dx, dy);
+      const clamped = Math.min(d, baseR);
+      if (d > 0) { dx = dx / d * clamped; dy = dy / d * clamped; }
+      knob.setPosition(bx + dx, by + dy);
+      Bus.emit('stick', dx / baseR, dy / baseR, clamped / baseR);
+    };
+    const release = () => { pid = null; knob.setPosition(bx, by); Bus.emit('stick', 0, 0, 0); };
+
+    zone.on('pointerdown', (p) => { pid = p.id; update(p.x, p.y); });
+    this.input.on('pointermove', (p) => { if (p.id === pid) update(p.x, p.y); });
+    this.input.on('pointerup',   (p) => { if (p.id === pid) release(); });
   }
 
   onUpdate(d) {
@@ -872,7 +899,8 @@ class GameScene extends Phaser.Scene {
     this.hunted      = false;  // is the current shift a hunted (crew active) shift
     this.nightsOwed  = 0;      // night shifts started while still in debt
     this.invulnUntil = 0;      // i-frame timestamp after a ram
-    this.touch = { up: false, down: false, left: false, right: false, brake: false, interact: false, pause: false };
+    this.touch = { up: false, down: false, left: false, right: false, brake: false, interact: false, pause: false,
+                   stickActive: false, stickX: 0, stickY: 0, stickMag: 0 };
 
     this.buildTextures();
     this.buildWorld();
@@ -916,6 +944,10 @@ class GameScene extends Phaser.Scene {
 
     Bus.on('timeoff', this.onTimeOffChoice, this);
     Bus.on('touch', (c, v) => { this.touch[c] = v; }, this);
+    Bus.on('stick', (x, y, m) => {
+      this.touch.stickX = x; this.touch.stickY = y; this.touch.stickMag = m;
+      this.touch.stickActive = m > 0.01;
+    }, this);
 
     this.scene.launch('UI');
 
@@ -1603,7 +1635,15 @@ class GameScene extends Phaser.Scene {
     const goRight = this.cursors.right.isDown || this.moveKeys.KeyD || this.touch.right;
 
     const TURN   = 145 * (this.turnMod || 1);
-    if (Math.abs(this.playerSpeed) > 15) {
+    const usingStick = this.touch.stickActive && this.touch.stickMag > 0.18;
+    if (usingStick) {
+      // Analog joystick: curve the car toward the direction being pushed
+      let desired = Math.atan2(this.touch.stickX, -this.touch.stickY) * 180 / Math.PI;
+      if (this.controlsInverted) desired += 180;
+      const diff = Phaser.Math.Angle.WrapDegrees(desired - this.playerAngle);
+      const step = TURN * 1.9 * dt;
+      this.playerAngle += Phaser.Math.Clamp(diff, -step, step);
+    } else if (Math.abs(this.playerSpeed) > 15) {
       if (goLeft)  this.playerAngle -= TURN * dt * inv;
       if (goRight) this.playerAngle += TURN * dt * inv;
     }
@@ -1638,6 +1678,12 @@ class GameScene extends Phaser.Scene {
       const dir = this.playerSpeed > 0 ? -1 : 1;
       this.playerSpeed += dir * BRAKE * dt;
       if (Math.abs(this.playerSpeed) < BRAKE * dt) this.playerSpeed = 0;
+    } else if (usingStick) {
+      // Throttle scales with how far the stick is pushed
+      const target = MAX_SPD * this.touch.stickMag;
+      this.playerSpeed = (this.playerSpeed < target)
+        ? Math.min(this.playerSpeed + ACCEL * dt, target)
+        : Math.max(this.playerSpeed - FRICTION * dt, target);
     } else if (goUp) {
       this.playerSpeed = Math.min(this.playerSpeed + ACCEL * dt * inv, MAX_SPD);
     } else if (goDown) {
