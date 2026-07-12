@@ -20,6 +20,7 @@ const PIXEL_FONT = '"Press Start 2P", monospace';
 /* ── Version + changelog (newest first). Bump when features ship. ── */
 const CHANGELOG = [
   { v: '1.3', title: 'Streets Alive', items: [
+    'Choose-your-city map picker before each run',
     'City landmarks: Suburbia park, Uptown roundabout, Docks pier',
     'Two-way traffic — cars keep their lane and don\'t pile up',
   ] },
@@ -378,7 +379,7 @@ class MenuScene extends Phaser.Scene {
     btn.on('pointerdown', () => {
       SFX.init();
       this.cameras.main.fade(400, 0, 0, 0);
-      this.time.delayedCall(400, () => this.scene.start('Game'));
+      this.time.delayedCall(400, () => this.scene.start('MapSelect'));
     });
 
     // Pulse the button
@@ -429,6 +430,62 @@ class MenuScene extends Phaser.Scene {
 
   toggleChangelog(show) {
     this.clObjs.forEach(o => o.setVisible(show));
+  }
+}
+
+/* ═══════════════════════════════════════════
+   MAP SELECT SCENE
+═══════════════════════════════════════════ */
+class MapSelectScene extends Phaser.Scene {
+  constructor() { super('MapSelect'); }
+
+  create() {
+    this.add.rectangle(W / 2, H / 2, W, H, 0x0a0f0a);
+    this.cameras.main.fadeIn(300, 0, 0, 0);
+    this.add.text(W / 2, 84, 'CHOOSE YOUR CITY', {
+      fontSize: '30px', fontFamily: PIXEL_FONT, color: '#00ff88', stroke: '#003311', strokeThickness: 6
+    }).setOrigin(0.5);
+
+    const blurbs = ['Dense city grid', 'Drive-through park', 'Waterfront & Ferris wheel', 'Fountain roundabout'];
+    const cardW = 280, cardH = 150, gapX = 40, gapY = 34;
+    const gx = [W / 2 - cardW / 2 - gapX / 2, W / 2 + cardW / 2 + gapX / 2];
+    const gy = [200, 200 + cardH + gapY];
+
+    MAPS.forEach((m, i) => {
+      const x = gx[i % 2], y = gy[Math.floor(i / 2)];
+      const card = this.add.rectangle(x, y, cardW, cardH, m.ground, 1)
+        .setStrokeStyle(3, 0x225533).setInteractive({ useHandCursor: true });
+      // colour swatches from the building palette
+      m.palette.slice(0, 4).forEach((c, k) => this.add.rectangle(x - 96 + k * 30, y - 44, 24, 24, c));
+      this.add.text(x, y + 4, m.name, {
+        fontSize: '22px', fontFamily: 'Arial Black, Arial', color: '#ffffff', stroke: '#000', strokeThickness: 4
+      }).setOrigin(0.5);
+      this.add.text(x, y + 40, blurbs[i], {
+        fontSize: '14px', fontFamily: 'Arial', color: '#dfeee0'
+      }).setOrigin(0.5);
+      card.on('pointerover', () => card.setStrokeStyle(3, 0x00ff88));
+      card.on('pointerout',  () => card.setStrokeStyle(3, 0x225533));
+      card.on('pointerdown', () => this.launch(i));
+    });
+
+    const randY = gy[1] + cardH / 2 + 60;
+    const rnd = this.add.rectangle(W / 2, randY, 300, 54, 0x224422)
+      .setStrokeStyle(2, 0x00ff88).setInteractive({ useHandCursor: true });
+    this.add.text(W / 2, randY, '🎲  RANDOM CITY', {
+      fontSize: '20px', fontFamily: 'Arial Black, Arial', color: '#ffffff'
+    }).setOrigin(0.5);
+    rnd.on('pointerover', () => rnd.setFillStyle(0x336633));
+    rnd.on('pointerout',  () => rnd.setFillStyle(0x224422));
+    rnd.on('pointerdown', () => this.launch(Phaser.Math.Between(0, MAPS.length - 1)));
+
+    this.add.text(W / 2, H - 24, 'Pick a city to start your shift', {
+      fontSize: '13px', fontFamily: 'Arial', color: '#66aa88'
+    }).setOrigin(0.5);
+  }
+
+  launch(mapIndex) {
+    this.cameras.main.fade(350, 0, 0, 0);
+    this.time.delayedCall(350, () => this.scene.start('Game', { mapIndex }));
   }
 }
 
@@ -988,6 +1045,8 @@ class UIScene extends Phaser.Scene {
 class GameScene extends Phaser.Scene {
   constructor() { super('Game'); }
 
+  init(d) { this._chosenMap = (d && typeof d.mapIndex === 'number') ? d.mapIndex : null; }
+
   create() {
     try {
       this._createInternal();
@@ -1045,7 +1104,7 @@ class GameScene extends Phaser.Scene {
     this.touch = { up: false, down: false, left: false, right: false, brake: false, interact: false, pause: false,
                    stickActive: false, stickX: 0, stickY: 0, stickMag: 0 };
 
-    this.mapDef = Phaser.Utils.Array.GetRandom(MAPS);
+    this.mapDef = (this._chosenMap != null) ? MAPS[this._chosenMap] : Phaser.Utils.Array.GetRandom(MAPS);
     this.buildTextures();
     this.buildWorld();
     this.buildPlayer();
@@ -1383,6 +1442,7 @@ class GameScene extends Phaser.Scene {
       this.trafficList.push(car);
     }
     this.physics.add.collider(this.player, this.traffic, this.hitTraffic, null, this);
+    this.physics.add.collider(this.npcs, this.traffic);   // pedestrians don't walk through cars
   }
 
   // Sets velocity + snaps the car to the correct side of its road (two-way lanes)
@@ -1887,12 +1947,14 @@ class GameScene extends Phaser.Scene {
 
     const dx   = this.player.x - dest.x;
     const dy   = this.player.y - dest.y;
-    const dist = Math.sqrt(dx * dx + dy * dy);
+    const dist = Math.sqrt(dx * dx + dy * dy);   // straight-line, for the arrival check
 
     const screenAngle = Math.atan2(-dy, -dx) * 180 / Math.PI + 90;
     const arrows = ['↑','↗','→','↘','↓','↙','←','↖'];
     const idx = Math.round(((screenAngle % 360) + 360) % 360 / 45) % 8;
-    this.arrowText.setText(`${arrows[idx]}  ${Math.round(dist / TILE)}blks`);
+    // Manhattan distance in city blocks (one block = road-to-road spacing)
+    const blks = Math.max(1, Math.round((Math.abs(dx) + Math.abs(dy)) / (RI * TILE)));
+    this.arrowText.setText(`${arrows[idx]}  ${blks} blk${blks > 1 ? 's' : ''}`);
 
     if (dist < REACH_DIST) {
       if (this.jobPhase === 'pickup') {
@@ -2150,7 +2212,7 @@ function bootGame() {
       autoCenter: Phaser.Scale.CENTER_BOTH,
     },
     physics: { default: 'arcade', arcade: { gravity: { y: 0 }, debug: false } },
-    scene:  [MenuScene, GameScene, UIScene, TimeOffScene, GameOverScene]
+    scene:  [MenuScene, MapSelectScene, GameScene, UIScene, TimeOffScene, GameOverScene]
   });
 }
 
