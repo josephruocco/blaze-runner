@@ -19,29 +19,32 @@ const PIXEL_FONT = '"Press Start 2P", monospace';
 
 /* ── Version + changelog (newest first). Bump when features ship. ── */
 const CHANGELOG = [
+  { v: '1.7', title: 'Valet Chaos', items: [
+    'Limos now prowl the casino ring and double park at the valet, backing up everyone behind them',
+  ] },
   { v: '1.6', title: 'Roadworks & Rounds', items: [
-    'Downtown closes a random street for construction every shift — mind the barricades and find another way around',
+    'Downtown closes a random street for construction every shift. Mind the barricades and find another way around',
     'A school bus now does its rounds through Suburbia',
   ] },
   { v: '1.5', title: 'Uptown, High Roller', items: [
-    'Uptown is the high-roller district — jobs pay 60% more but the traffic\'s thick and the mafia hits harder',
+    'Uptown is the high roller district. Jobs pay 60% more but the traffic is thick and the mafia hits harder',
     'A neon CASINO landmark with a valet loop and limos parked out front',
-    'One-way avenues — follow the painted arrows or fight the flow',
+    'One way avenues. Follow the painted arrows or fight the flow',
   ] },
   { v: '1.4', title: 'Easy / Hard + Shift Stakes', items: [
     'Easy / Hard difficulty picker on the city select',
-    'Pizza runs are beat-the-clock — deliver in time or it\'s free',
-    'Ambulance patients now have health — critical ones are a race against the clock',
+    'Pizza runs are a race against the clock. Deliver in time or it\'s free',
+    'Ambulance patients now have health. Critical ones are a race against the clock',
     'You only get jailed after a few kills (three on Easy, one on Hard)',
   ] },
   { v: '1.3', title: 'Streets Alive', items: [
-    'Only high-speed hits are fatal — clip someone in the ambulance and rush them to the hospital to save them',
-    'Choose-your-city map picker before each run',
-    'Tap-friendly pause menu with an End Game option',
+    'Only fast hits are fatal. Clip someone in the ambulance and rush them to the hospital to save them',
+    'Pick your city from a map picker before each run',
+    'Tap friendly pause menu with an End Game option',
     'City landmarks: Suburbia park + supermarket lot, Uptown roundabout',
     'Docks: beach, boardwalk & delivery piers you drive onto',
-    'Downtown rush hour — heavy traffic + a highway on/off ramp',
-    'Two-way traffic — cars keep their lane and don\'t pile up',
+    'Downtown rush hour with heavy traffic and a highway ramp',
+    'Two way traffic. Cars keep their lane and don\'t pile up',
   ] },
   { v: '1.2', title: 'Driving Polish', items: [
     'Pedestrians dodge out of your way',
@@ -107,7 +110,7 @@ const MAPS = [
     poi: { hospital: [2,0], pizzeria: [1,1], gas: [3,2], store: [0,2] },
     trafficCount: 22, payMult: 1.6, mafiaAggro: 1.3,          // big money, big risk
     oneWay: [{ axis: 'v', col: 8, dir: 1 }, { axis: 'v', col: 24, dir: -1 }],  // one-way avenues
-    features: [{ type: 'roundabout', block: [2,2] }, { type: 'casino', block: [0,0] }] },
+    features: [{ type: 'roundabout', block: [2,2] }, { type: 'casino', block: [0,0], valetLimos: 4 }] },
 ];
 
 /* ── Global event bus (no Phaser dependency at load time) ── */
@@ -445,7 +448,7 @@ class MenuScene extends Phaser.Scene {
 
     let y = H / 2 - 220;
     CHANGELOG.forEach(rel => {
-      const h = this.add.text(W / 2 - 300, y, `v${rel.v}  —  ${rel.title}`, {
+      const h = this.add.text(W / 2 - 300, y, `v${rel.v}  ·  ${rel.title}`, {
         fontSize: '16px', fontFamily: 'Arial Black, Arial', color: '#ffdd44'
       }).setDepth(202).setVisible(false);
       this.clObjs.push(h); y += 26;
@@ -873,12 +876,12 @@ class UIScene extends Phaser.Scene {
     const helpLines = [
       ['🎮 CONTROLS',       'WASD / Arrows = drive    SPACE = brake    E = gas / store'],
       ['💼 JOBS',           'Pick up & deliver pizza or ambulance patients for cash'],
-      ['🌿 GETTING HIGH',   'Smoke weed to raise your high meter — score = high × time'],
+      ['🌿 GETTING HIGH',   'Smoke weed to raise your high meter. Score = high × time'],
       ['🚗 SERPENTINE',     'The higher you are, the more your car sways & jerks'],
-      ['⚠️  LOAN SHARK',    'Kill a pedestrian → debt → drive-by crew chases you'],
-      ['💸 PAY DEBT',       'Choose "Pay Debt" at the time-off screen to call them off'],
+      ['⚠️  LOAN SHARK',    'Kill a pedestrian → debt → the crew chases you'],
+      ['💸 PAY DEBT',       'Choose "Pay Debt" at the time off screen to call them off'],
       ['⛽ GAS STATION',    'Drive close and press E to restore health for $40'],
-      ['🏪 CORNER STORE',   'Buy weed mid-shift for $45 with E — no need to wait'],
+      ['🏪 CORNER STORE',   'Buy weed mid shift for $45 with E, no need to wait'],
     ];
     this.helpTexts = helpLines.map(([ label, desc ], i) => {
       const y = H / 2 - 120 + i * 36;
@@ -890,7 +893,7 @@ class UIScene extends Phaser.Scene {
       }).setScrollFactor(0).setDepth(122).setVisible(false);
       return [a, b];
     });
-    const helpTitle = this.add.text(W / 2, H / 2 - 152, 'HOW TO PLAY  —  press ? to close', {
+    const helpTitle = this.add.text(W / 2, H / 2 - 152, 'HOW TO PLAY  ·  press ? to close', {
       fontSize: '14px', fontFamily: 'Arial Black, Arial', color: '#ffffff'
     }).setOrigin(0.5).setScrollFactor(0).setDepth(122).setVisible(false);
     this.helpTexts.push([helpTitle]);
@@ -1066,12 +1069,12 @@ class UIScene extends Phaser.Scene {
     this.scoreText.setText(`Score: ${Math.floor(this.score)}`);
     this.jobText.setText(d.jobStatus || '');
     this.debtText.setText(this.debt > 0 ? `🦈 LOAN SHARK: $${Math.floor(this.debt)} owed` : '');
-    this.rescueText.setText(d.rescue ? `🚑 SAVE THEM — ${d.rescue}s to the hospital!` : '');
+    this.rescueText.setText(d.rescue ? `🚑 SAVE THEM! ${d.rescue}s to the hospital!` : '');
 
     // Pizza delivery countdown
     if (d.pizzaTimer >= 0) {
       const t = d.pizzaTimer, mm = Math.floor(t / 60), ss = t % 60;
-      this.pizzaTimerText.setText(`🍕 ${mm}:${String(ss).padStart(2, '0')} — deliver or it's free`);
+      this.pizzaTimerText.setText(`🍕 ${mm}:${String(ss).padStart(2, '0')} · deliver or it's free`);
       this.pizzaTimerText.setColor(t <= 15 ? '#ff5555' : '#ffcc44');
     } else this.pizzaTimerText.setText('');
 
@@ -1329,7 +1332,7 @@ class GameScene extends Phaser.Scene {
     SFX.startMusic();
 
     this.time.delayedCall(1800, () => this.startNewShift());
-    this.showStatus(`📍 ${this.mapDef.name} — starting shift soon...`);
+    this.showStatus(`📍 ${this.mapDef.name} · starting shift soon...`);
   }
 
   /* ── World ── */
@@ -1471,6 +1474,7 @@ class GameScene extends Phaser.Scene {
             this.add.text(bx + bw / 2, cby + cbh * 0.42 + 8, '🎰 CASINO', {
               fontSize: '15px', fontFamily: 'Arial Black, Arial', color: '#ffdd33', stroke: '#3a1030', strokeThickness: 4
             }).setOrigin(0.5).setDepth(5);
+            this.casinoRect = { x: bx, y: by, w: bw, h: bh, limos: feat.valetLimos || 3 };
           }
           continue;
         }
@@ -1742,6 +1746,7 @@ class GameScene extends Phaser.Scene {
       this.trafficList.push(car);
     }
     if (this.mapDef.schoolBus) this._spawnBus();
+    if (this.casinoRect) for (let i = 0; i < this.casinoRect.limos; i++) this._spawnLimo();
     this.physics.add.collider(this.player, this.traffic, this.hitTraffic, null, this);
     this.physics.add.collider(this.npcs, this.traffic);   // pedestrians don't walk through cars
   }
@@ -1764,6 +1769,33 @@ class GameScene extends Phaser.Scene {
     this._setTrafficVel(bus);
     bus._prevX = bus.x; bus._prevY = bus.y;
     this.trafficList.push(bus);
+  }
+
+  // A limo that roams the casino's ring roads and periodically double-parks at the valet
+  _spawnLimo() {
+    const limo = this.traffic.create(0, 0, 'car_limo');
+    limo.setDepth(12); limo.body.setSize(24, 50); limo.setImmovable(true);
+    limo.isLimo = true;
+    const nearCols = [this.colCenters[0], this.colCenters[1]].filter(v => v != null);
+    const nearRows = [this.rowCenters[0], this.rowCenters[1]].filter(v => v != null);
+    const horizontal = Math.random() < 0.5;
+    limo.axis = horizontal ? 'h' : 'v';
+    limo.dir  = Math.random() < 0.5 ? 1 : -1;
+    limo.speed = Phaser.Math.Between(80, 140);
+    limo._pri  = 5 + this.trafficList.length;
+    if (horizontal) { limo.laneCenter = Phaser.Utils.Array.GetRandom(nearRows); limo.x = Phaser.Math.Between(60, this.colCenters[1] + 140); }
+    else            { limo.laneCenter = Phaser.Utils.Array.GetRandom(nearCols); limo.y = Phaser.Math.Between(60, this.rowCenters[1] + 140); }
+    const forced = this._forcedDir(limo.axis, limo.laneCenter);
+    if (forced != null) limo.dir = forced;
+    this._setTrafficVel(limo);
+    limo._prevX = limo.x; limo._prevY = limo.y;
+    this.trafficList.push(limo);
+  }
+
+  _nearCasino(car) {
+    const r = this.casinoRect; if (!r) return false;
+    const m = 100;
+    return car.x > r.x - m && car.x < r.x + r.w + m && car.y > r.y - m && car.y < r.y + r.h + m;
   }
 
   // Construction: barricade a random mid-block road segment for this shift (forces a detour)
@@ -1877,6 +1909,16 @@ class GameScene extends Phaser.Scene {
     // No overlapping: follow the car ahead in your lane, yield to priority at crossings
     this.trafficList.forEach(car => {
       if (!car.active) return;
+      // Valet chaos: limos double-park at the casino for a beat, backing up the cars behind
+      if (car.isLimo) {
+        const now = this.time.now;
+        if (car._valetUntil) {
+          if (now < car._valetUntil) { car.setVelocity(0, 0); return; }
+          car._valetUntil = 0; car._valetCd = now; this._setTrafficVel(car);
+        } else if (now - (car._valetCd || 0) > 3500 && this._nearCasino(car) && Math.random() < 0.03) {
+          car._valetUntil = now + 1400; car.setVelocity(0, 0); return;
+        }
+      }
       let blocked = false;
       for (const o of this.trafficList) {
         if (o === car || !o.active) continue;
@@ -2002,8 +2044,8 @@ class GameScene extends Phaser.Scene {
         this.hunted = true;
         const cap = boldDay ? 3 : 2;
         this.time.delayedCall(2500, () => this.showStatus(boldDay
-          ? '🦈 You ignored the debt too long — the crew hunts you in broad daylight now!'
-          : '🌙 Night shift — the crew is hunting you. Lose them or pay your debt!'));
+          ? '🦈 You ignored the debt too long. The crew hunts you in broad daylight now!'
+          : '🌙 Night shift. The crew is hunting you. Lose them or pay your debt!'));
         for (let i = 0; i < cap; i++) {
           this.time.delayedCall(6000 + i * 8000, () => { if (this.isOnShift && this.hunted) this.spawnHitman(); });
         }
@@ -2050,7 +2092,7 @@ class GameScene extends Phaser.Scene {
       if (toSpawn > 0) this._spawnNPCs(toSpawn);
       this.showStatus(bonus > 0 ? `❤️ Patient delivered! +$${pay}` : `✅ Job complete! +$${pay}`);
     } else {
-      this.showStatus('⏰ Shift ended — no pay');
+      this.showStatus('⏰ Shift ended, no pay');
     }
 
     // Apply any debt racked up mid-shift from extra kills
@@ -2111,7 +2153,7 @@ class GameScene extends Phaser.Scene {
             this.hitmen.clear(true, true);
             this.bullets.clear(true, true);
             this.cameras.main.flash(500, 0, 200, 80);
-            this.showStatus('💸 Debt paid in full — crew called off!');
+            this.showStatus('💸 Debt paid in full. Crew called off!');
           } else {
             this.showStatus(`💸 Paid $${Math.floor(pmt)} — $${Math.floor(this.debt)} still owed`);
           }
@@ -2164,9 +2206,9 @@ class GameScene extends Phaser.Scene {
     if (this.jobType === 'ambulance' && !this.rescueActive) {
       this.startRescue(npc);
     } else if (this.jobType === 'ambulance') {
-      this.showStatus('😖 You clipped someone — one patient at a time!');
+      this.showStatus('😖 You clipped someone, one patient at a time!');
     } else {
-      this.showStatus('😖 You clipped a pedestrian — ease off the gas!');
+      this.showStatus('😖 You clipped a pedestrian, ease off the gas!');
     }
   }
 
@@ -2230,7 +2272,7 @@ class GameScene extends Phaser.Scene {
     this.hitmen.clear(true, true);
     this.bullets.clear(true, true);
     this.cameras.main.flash(400, 0, 140, 60);
-    this.showStatus('🏁 LOST THEM! The crew gave up — for now.');
+    this.showStatus('🏁 LOST THEM! The crew gave up, for now.');
   }
 
   spawnHitman() {
@@ -2276,7 +2318,7 @@ class GameScene extends Phaser.Scene {
     this.tweens.add({ targets: this.player, alpha: 0.3, duration: 120, yoyo: true, repeat: 4,
       onComplete: () => this.player.setAlpha(1) });
     this.takeDamage(35, false);
-    if (this.gameActive) this.showStatus('💥 Rammed the crew off — but it cost you!');
+    if (this.gameActive) this.showStatus('💥 Rammed the crew off, but it cost you!');
   }
 
   /* ── High Effects ── */
@@ -2353,7 +2395,7 @@ class GameScene extends Phaser.Scene {
       }
     };
 
-    trySpot(this.gasPos, '⛽ [E] Refuel — $40 (+50 HP)', () => {
+    trySpot(this.gasPos, '⛽ [E] Refuel $40 (+50 HP)', () => {
       if (this.money >= 40) {
         this.money -= 40;
         this.health = Math.min(100, this.health + 50);
