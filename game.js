@@ -444,7 +444,7 @@ class TimeOffScene extends Phaser.Scene {
   create() {
     this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.78);
 
-    this.add.text(W / 2, 70, 'SHIFT OVER — TIME OFF', {
+    this.add.text(W / 2, 70, 'SHIFT OVER', {
       fontSize: '30px', fontFamily: 'Arial Black, Arial', color: '#00ff88'
     }).setOrigin(0.5);
 
@@ -564,6 +564,20 @@ class UIScene extends Phaser.Scene {
     this.add.text(12, H - 38, 'HP', { fontSize: '12px', color: '#ff8888', fontFamily: 'Arial Black, Arial' }).setScrollFactor(0);
     this.add.rectangle(60, H - 30, 120, 16, 0x330000).setOrigin(0, 0.5).setScrollFactor(0);
     this.healthBar = this.add.rectangle(60, H - 30, 120, 16, 0xff3333).setOrigin(0, 0.5).setScrollFactor(0);
+
+    // ── Speedometer (desktop only — mobile has the joystick here) ──
+    this.speedoG = null;
+    if (!this.isTouch) {
+      this.speedoCX = 58; this.speedoCY = H - 96; this.speedoR = 32;
+      this.add.circle(this.speedoCX, this.speedoCY, this.speedoR + 10, 0x000000, 0.5).setScrollFactor(0).setDepth(95);
+      this.speedoG = this.add.graphics().setScrollFactor(0).setDepth(96);
+      this.speedoNum = this.add.text(this.speedoCX, this.speedoCY + 8, '0', {
+        fontSize: '16px', fontFamily: 'Arial Black, Arial', color: '#ffffff', stroke: '#000', strokeThickness: 2
+      }).setOrigin(0.5).setScrollFactor(0).setDepth(97);
+      this.add.text(this.speedoCX, this.speedoCY + 24, 'MPH', {
+        fontSize: '9px', fontFamily: 'Arial', color: '#88aacc'
+      }).setOrigin(0.5).setScrollFactor(0).setDepth(97);
+    }
 
     // ── Night overlay ──
     this.nightOverlay = this.add.rectangle(W / 2, H / 2, W, H, 0x000a22, 0).setScrollFactor(0).setDepth(88);
@@ -779,6 +793,22 @@ class UIScene extends Phaser.Scene {
     this.jobText.setText(d.jobStatus || '');
     this.debtText.setText(this.debt > 0 ? `🦈 LOAN SHARK: $${Math.floor(this.debt)} owed` : '');
 
+    // Speedometer dial
+    if (this.speedoG) {
+      const g = this.speedoG; g.clear();
+      const cx = this.speedoCX, cy = this.speedoCY, r = this.speedoR;
+      const frac = Math.max(0, Math.min(1, (d.speed || 0) / 520));
+      g.lineStyle(5, 0x334a5a, 1);
+      g.beginPath(); g.arc(cx, cy, r, Math.PI, 2 * Math.PI, false); g.strokePath();
+      g.lineStyle(5, frac > 0.82 ? 0xff4444 : 0x33ddff, 1);
+      g.beginPath(); g.arc(cx, cy, r, Math.PI, Math.PI + frac * Math.PI, false); g.strokePath();
+      const a = Math.PI + frac * Math.PI;
+      g.lineStyle(3, 0xffffff, 1);
+      g.beginPath(); g.moveTo(cx, cy); g.lineTo(cx + Math.cos(a) * (r - 4), cy + Math.sin(a) * (r - 4)); g.strokePath();
+      g.fillStyle(0xffffff, 1); g.fillCircle(cx, cy, 3);
+      this.speedoNum.setText(String(Math.round((d.speed || 0) * 0.22)));
+    }
+
     // Shake-them evade bar
     const shake = d.shakeProgress || 0;
     const showShake = shake > 0.001;
@@ -961,6 +991,7 @@ class GameScene extends Phaser.Scene {
     this.eKey     = this.input.keyboard.addKey('E');
     this.pKey     = this.input.keyboard.addKey('P');
     this.brakeKey = this.input.keyboard.addKey('SPACE');
+    this.sprintKey = this.input.keyboard.addKey('SHIFT');
     this.paused   = false;
 
     this.physics.world.setBounds(0, 0, WORLD_W, WORLD_H);
@@ -1291,6 +1322,7 @@ class GameScene extends Phaser.Scene {
 
     // Advance time of day (~2.5 hrs per shift)
     this.timeOfDay = (this.timeOfDay + 0.104) % 1;
+    this.energy = Math.max(0, this.energy - 20);   // a shift's work wears you down — sleep to recover
 
     if (success) {
       this.shiftCount++;
@@ -1715,8 +1747,10 @@ class GameScene extends Phaser.Scene {
       }
     }
 
-    const MAX_SPD = 320 * (this.speedMod || 1);
-    const ACCEL   = 290;
+    const sprint    = (this.sprintKey && this.sprintKey.isDown) ? 1.4 : 1;   // hold Shift to sprint
+    const energyMod = 0.85 + 0.15 * (this.energy / 100);                     // tired = a bit sluggish
+    const MAX_SPD = 320 * (this.speedMod || 1) * sprint * energyMod;
+    const ACCEL   = 290 * sprint;
     const FRICTION = 320;
 
     const BRAKE = 720;
@@ -1760,6 +1794,14 @@ class GameScene extends Phaser.Scene {
     // NPCs
     this.npcList.forEach(npc => {
       if (!npc.alive || !npc.active) return;
+      // Dodge out of the way when the car bears down on them at speed
+      const pdx = npc.x - this.player.x, pdy = npc.y - this.player.y;
+      const pd  = Math.hypot(pdx, pdy);
+      if (pd > 0 && pd < 140 && Math.abs(this.playerSpeed) > 40) {
+        const flee = npc.walkSpeed * 2.4;
+        npc.setVelocity((pdx / pd) * flee, (pdy / pd) * flee);
+        return;
+      }
       npc.walkTimer -= delta;
       if (npc.walkTimer <= 0) {
         npc.walkDir   = Phaser.Math.Between(0, 3);
@@ -1817,6 +1859,7 @@ class GameScene extends Phaser.Scene {
       debt:       this.debt,
       hunted:     this.hunted,
       shakeProgress: this.hunted ? this.evadeTimer / SHAKE_TIME : 0,
+      speed:      Math.abs(this.playerSpeed),
       health:     this.health,
       timeOfDay:  this.timeOfDay,
       jobStatus:  this.getJobStatus(),
