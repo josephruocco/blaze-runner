@@ -19,6 +19,10 @@ const PIXEL_FONT = '"Press Start 2P", monospace';
 
 /* ── Version + changelog (newest first). Bump when features ship. ── */
 const CHANGELOG = [
+  { v: '1.6', title: 'Roadworks & Rounds', items: [
+    'Downtown closes a random street for construction every shift — mind the barricades and find another way around',
+    'A school bus now does its rounds through Suburbia',
+  ] },
   { v: '1.5', title: 'Uptown, High Roller', items: [
     'Uptown is the high-roller district — jobs pay 60% more but the traffic\'s thick and the mafia hits harder',
     'A neon CASINO landmark with a valet loop and limos parked out front',
@@ -88,11 +92,11 @@ const MAPS = [
   { name: 'Downtown', ground: 0x2e5c28, road: 0x4a4a5a,
     palette: [0x7a4030, 0x404060, 0x305050, 0x504030, 0x403050, 0x305030, 0x603040],
     poi: { hospital: [0,0], pizzeria: [2,2], gas: [1,3], store: [3,1] },
-    trafficCount: 26, highway: true },
+    trafficCount: 26, highway: true, construction: true },   // a street's closed each shift
   { name: 'Suburbia', ground: 0x3a6b2e, road: 0x565c56,
     palette: [0x8a6a4a, 0x6a7a5a, 0x7a5a4a, 0x5a6a6a, 0x8a7a5a, 0x6a5a4a, 0x7a6a5a],
     poi: { hospital: [3,0], pizzeria: [0,3], gas: [2,1], store: [1,2] },
-    trafficCount: 18,
+    trafficCount: 18, schoolBus: true,                       // a school bus does its rounds
     features: [{ type: 'park', block: [2,2] }, { type: 'lot', block: [1,1] }] },
   { name: 'The Docks', ground: 0x2a4a55, road: 0x40484f,
     palette: [0x4a5a6a, 0x3a4a5a, 0x5a4a3a, 0x4a4a4a, 0x2a3a4a, 0x5a5a4a, 0x3a5a5a],
@@ -1642,6 +1646,18 @@ class GameScene extends Phaser.Scene {
     limG.generateTexture('car_limo', 36, 56);
     limG.destroy();
 
+    // School bus (Suburbia) — long, yellow, black trim, rows of windows
+    const busG = this.make.graphics({ add: false });
+    busG.fillStyle(0x111111); busG.fillRect(0, 8, 5, 14); busG.fillRect(35, 8, 5, 14); busG.fillRect(0, 50, 5, 14); busG.fillRect(35, 50, 5, 14);
+    busG.fillStyle(0xf4c020); busG.fillRect(5, 2, 30, 68);
+    busG.fillStyle(0x111111, 0.85); busG.fillRect(5, 4, 30, 3); busG.fillRect(5, 33, 30, 2);
+    busG.fillStyle(0x88ccff, 0.8); busG.fillRect(9, 8, 22, 9);
+    for (let wy = 22; wy < 60; wy += 12) busG.fillRect(9, wy, 22, 8);
+    busG.fillStyle(0xffffcc); busG.fillRect(8, 2, 8, 4); busG.fillRect(24, 2, 8, 4);
+    busG.fillStyle(0xff2222); busG.fillRect(8, 66, 8, 4); busG.fillRect(24, 66, 8, 4);
+    busG.generateTexture('car_bus', 40, 72);
+    busG.destroy();
+
     // Civilian traffic cars (a few colours)
     const trafficColors = [0x3366cc, 0x8a8a8a, 0xccaa33, 0x55aa66, 0xbb5544];
     this._trafficTexCount = trafficColors.length;
@@ -1725,8 +1741,68 @@ class GameScene extends Phaser.Scene {
       car._prevX = car.x; car._prevY = car.y;
       this.trafficList.push(car);
     }
+    if (this.mapDef.schoolBus) this._spawnBus();
     this.physics.add.collider(this.player, this.traffic, this.hitTraffic, null, this);
     this.physics.add.collider(this.npcs, this.traffic);   // pedestrians don't walk through cars
+  }
+
+  // One big, slow school bus that drives the roads like any other traffic car
+  _spawnBus() {
+    const bus = this.traffic.create(0, 0, 'car_bus');
+    bus.setDepth(12); bus.body.setSize(30, 60); bus.setImmovable(true);
+    const horizontal = Math.random() < 0.5;
+    bus.axis = horizontal ? 'h' : 'v';
+    bus.dir  = Math.random() < 0.5 ? 1 : -1;
+    bus.speed = 95;      // trundles along
+    bus._pri  = -1;      // right of way at intersections
+    bus.laneCenter = horizontal ? Phaser.Utils.Array.GetRandom(this.rowCenters)
+                                : Phaser.Utils.Array.GetRandom(this.colCenters);
+    const forced = this._forcedDir(bus.axis, bus.laneCenter);
+    if (forced != null) bus.dir = forced;
+    if (horizontal) bus.x = Phaser.Math.Between(120, WORLD_W - 120);
+    else            bus.y = Phaser.Math.Between(120, this.southBound - 120);
+    this._setTrafficVel(bus);
+    bus._prevX = bus.x; bus._prevY = bus.y;
+    this.trafficList.push(bus);
+  }
+
+  // Construction: barricade a random mid-block road segment for this shift (forces a detour)
+  closeStreet() {
+    if (this._roadworkWall) this._roadworkWall.destroy();
+    if (this._roadworkGfx)  this._roadworkGfx.destroy();
+    (this._roadworkItems || []).forEach(o => o.destroy());
+    this._roadworkItems = []; this._roadworkWall = null;
+
+    const road = TILE * 2, rows = this.rowCenters, cols = this.colCenters;
+    const cands = [];
+    for (const cy of rows) for (let i = 0; i < cols.length - 1; i++) cands.push({ horiz: true,  cx: (cols[i] + cols[i+1]) / 2, cy });
+    for (const cx of cols) for (let i = 0; i < rows.length - 1; i++) cands.push({ horiz: false, cx, cy: (rows[i] + rows[i+1]) / 2 });
+    const px = this.player.x, py = this.player.y;
+    const safe = cands.filter(c => Phaser.Math.Distance.Between(c.cx, c.cy, px, py) > 220);
+    const pick = Phaser.Utils.Array.GetRandom(safe.length ? safe : cands);
+    if (!pick) return;
+
+    const g = this.add.graphics().setDepth(4);
+    this._roadworkGfx = g;
+    const bar = 18, half = road / 2 - 6;
+    if (pick.horiz) {   // road runs left-right → tall striped barrier blocks travel along it
+      for (let y = pick.cy - half; y < pick.cy + half; y += 14) { g.fillStyle((((y / 14) | 0) & 1) ? 0x111111 : 0xffbb00); g.fillRect(pick.cx - bar / 2, y, bar, 14); }
+    } else {
+      for (let x = pick.cx - half; x < pick.cx + half; x += 14) { g.fillStyle((((x / 14) | 0) & 1) ? 0x111111 : 0xffbb00); g.fillRect(x, pick.cy - bar / 2, 14, bar); }
+    }
+    const cone = (x, y) => { g.fillStyle(0xff6600); g.fillTriangle(x - 6, y + 7, x + 6, y + 7, x, y - 8); g.fillStyle(0xffffff); g.fillRect(x - 4, y + 1, 8, 3); };
+    if (pick.horiz) { cone(pick.cx - 22, pick.cy - half + 8); cone(pick.cx + 22, pick.cy + half - 8); }
+    else            { cone(pick.cx - half + 8, pick.cy - 22); cone(pick.cx + half - 8, pick.cy + 22); }
+
+    const wall = this.wallGroup.create(pick.cx, pick.cy, 'pixel');
+    wall.setVisible(false);
+    wall.setDisplaySize(pick.horiz ? bar + 12 : road, pick.horiz ? road : bar + 12);
+    wall.refreshBody();
+    this._roadworkWall = wall;
+
+    this._roadworkItems.push(this.add.text(pick.cx, pick.cy - road / 2 - 8, '🚧 ROAD CLOSED', {
+      fontSize: '11px', fontFamily: 'Arial Black, Arial', color: '#ffcc33', stroke: '#000', strokeThickness: 3
+    }).setOrigin(0.5).setDepth(6));
   }
 
   // Forced direction for a one-way road lane (undefined = two-way)
@@ -1891,6 +1967,8 @@ class GameScene extends Phaser.Scene {
     this.shiftTimer = this.jobType === 'pizza' ? this.diff.pizzaTime : SHIFT_DURATION;
 
     this.player.setTexture(this.jobType === 'pizza' ? 'car_pizza' : 'car_amb');
+
+    if (this.mapDef.construction) this.closeStreet();   // a fresh street closure each shift
 
     const house = Phaser.Utils.Array.GetRandom(this.houseSpots);
 
