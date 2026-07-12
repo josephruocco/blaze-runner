@@ -20,6 +20,7 @@ const PIXEL_FONT = '"Press Start 2P", monospace';
 /* ── Version + changelog (newest first). Bump when features ship. ── */
 const CHANGELOG = [
   { v: '1.3', title: 'Streets Alive', items: [
+    'Only high-speed hits are fatal — clip someone in the ambulance and rush them to the hospital to save them',
     'Choose-your-city map picker before each run',
     'Tap-friendly pause menu with an End Game option',
     'City landmarks: Suburbia park + supermarket lot, Uptown roundabout',
@@ -61,6 +62,8 @@ const HITMAN_IFRAMES = 1200;   // ms of invulnerability after a ram
 const BOLD_NIGHTS    = 3;      // nights owing before the crew hunts in daylight too
 const SHAKE_DIST     = 700;    // px of separation needed to start shaking the crew
 const SHAKE_TIME     = 6;      // seconds of separation to fully lose them
+const KILL_SPEED     = 230;    // below this a pedestrian is only injured, not killed
+const RESCUE_TIME    = 22;     // seconds to get an injured pedestrian to the hospital
 
 /* ── Authored city maps: POIs land in different blocks [sc,sr] + own color theme.
    Picked at random each run so you don't always know where the hospital/pizza are. ── */
@@ -72,6 +75,7 @@ const MAPS = [
   { name: 'Suburbia', ground: 0x3a6b2e, road: 0x565c56,
     palette: [0x8a6a4a, 0x6a7a5a, 0x7a5a4a, 0x5a6a6a, 0x8a7a5a, 0x6a5a4a, 0x7a6a5a],
     poi: { hospital: [3,0], pizzeria: [0,3], gas: [2,1], store: [1,2] },
+    trafficCount: 18,
     features: [{ type: 'park', block: [2,2] }, { type: 'lot', block: [1,1] }] },
   { name: 'The Docks', ground: 0x2a4a55, road: 0x40484f,
     palette: [0x4a5a6a, 0x3a4a5a, 0x5a4a3a, 0x4a4a4a, 0x2a3a4a, 0x5a5a4a, 0x3a5a5a],
@@ -686,6 +690,11 @@ class UIScene extends Phaser.Scene {
       stroke: '#000', strokeThickness: 2
     }).setOrigin(0.5, 0).setScrollFactor(0);
 
+    this.rescueText = this.add.text(W / 2, 100, '', {
+      fontSize: '17px', fontFamily: 'Arial Black, Arial', color: '#ff5555',
+      stroke: '#000', strokeThickness: 3
+    }).setOrigin(0.5, 0).setScrollFactor(0).setDepth(60);
+
     // ── "Shaking them" evade bar (top-center, shown only while escaping) ──
     this.shakeLabel = this.add.text(W / 2, 58, 'SHAKING THEM', {
       fontSize: '12px', fontFamily: 'Arial Black, Arial', color: '#ffff66',
@@ -988,6 +997,7 @@ class UIScene extends Phaser.Scene {
     this.scoreText.setText(`Score: ${Math.floor(this.score)}`);
     this.jobText.setText(d.jobStatus || '');
     this.debtText.setText(this.debt > 0 ? `🦈 LOAN SHARK: $${Math.floor(this.debt)} owed` : '');
+    this.rescueText.setText(d.rescue ? `🚑 SAVE THEM — ${d.rescue}s to the hospital!` : '');
 
     // Speedometer dial
     if (this.speedoG) {
@@ -1146,6 +1156,8 @@ class GameScene extends Phaser.Scene {
     this.jobType          = null;
     this.jobPhase         = null;
     this.shiftTimer       = 0;
+    this.rescueActive     = false;
+    this.rescueTimer      = 0;
     this.gameActive       = true;
     this.manslaughterCount= 0;
     this.shiftCount       = 0;
@@ -1785,6 +1797,7 @@ class GameScene extends Phaser.Scene {
     this.dropoffMarker.setVisible(false);
     this.arrowText.setText('');
     if (this._houseCircle) { this._houseCircle.destroy(); this._houseCircle = null; }
+    if (this.rescueActive) { this.rescueActive = false; if (this._rescueCircle) { this._rescueCircle.destroy(); this._rescueCircle = null; } }
 
     // Advance time of day (~2.5 hrs per shift)
     this.timeOfDay = (this.timeOfDay + 0.104) % 1;
@@ -1889,24 +1902,60 @@ class GameScene extends Phaser.Scene {
 
   hitNPC(player, npc) {
     if (!npc.alive) return;
-    if (Math.abs(this.playerSpeed) < 60) return;
+    const spd = Math.abs(this.playerSpeed);
+    if (spd < 60) return;
 
     npc.alive = false;
-    npc.setTint(0x880000);
     npc.setVelocity(0, 0);
+    this.cameras.main.flash(300, 180, 0, 0);
+    this.cameras.main.shake(350, 0.016);
+    SFX.playImpact(Math.min(1, spd / 300));
 
-    this.cameras.main.flash(350, 180, 0, 0);
-    this.cameras.main.shake(400, 0.018);
-    SFX.playImpact(0.8);
+    if (spd >= KILL_SPEED) {
+      // Too fast — fatal. Vehicular manslaughter.
+      npc.setTint(0x880000);
+      this.manslaughterCount++;
+      this.showStatus('💀 VEHICULAR MANSLAUGHTER!');
+      if (!this.hasLoanShark) this.time.delayedCall(1500, () => this.activateLoanShark());
+      else { this.pendingDebt = (this.pendingDebt || 0) + DEBT_REPEAT; this.showStatus(`💀 MANSLAUGHTER! +$${DEBT_REPEAT} owed`); }
+      return;
+    }
 
-    this.manslaughterCount++;
-    this.showStatus('💀 VEHICULAR MANSLAUGHTER!');
-
-    if (!this.hasLoanShark) {
-      this.time.delayedCall(1500, () => this.activateLoanShark());
+    // Non-fatal: injured
+    npc.setTint(0xffaa00);
+    if (this.jobType === 'ambulance' && !this.rescueActive) {
+      this.startRescue(npc);
+    } else if (this.jobType === 'ambulance') {
+      this.showStatus('😖 You clipped someone — one patient at a time!');
     } else {
-      this.pendingDebt = (this.pendingDebt || 0) + DEBT_REPEAT;
-      this.showStatus(`💀 MANSLAUGHTER! +$${DEBT_REPEAT} owed after shift`);
+      this.showStatus('😖 You clipped a pedestrian — ease off the gas!');
+    }
+  }
+
+  startRescue(npc) {
+    this.rescueActive = true;
+    this.rescueTimer  = RESCUE_TIME;
+    if (npc && npc.destroy) npc.destroy();   // scooped into the ambulance
+    if (this._rescueCircle) this._rescueCircle.destroy();
+    this._rescueCircle = this.add.circle(this.hospitalPos.x, this.hospitalPos.y, 16, 0xff4444, 0.85).setDepth(6);
+    this.tweens.add({ targets: this._rescueCircle, scaleX: 1.6, scaleY: 1.6, alpha: 0.3, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+    this.cameras.main.flash(300, 200, 120, 0);
+    SFX.playSiren();
+    this.showStatus('🚑 Injured! Rush them to the HOSPITAL to save them!');
+  }
+
+  endRescue(saved) {
+    this.rescueActive = false;
+    if (this._rescueCircle) { this._rescueCircle.destroy(); this._rescueCircle = null; }
+    if (saved) {
+      this.money += 150; this.score += 200;
+      this.cameras.main.flash(400, 0, 200, 80);
+      SFX.playDropoff();
+      this.showStatus('❤️ You saved them! +$150');
+    } else {
+      this.showStatus('💀 They didn\'t make it...');
+      if (!this.hasLoanShark) this.activateLoanShark();
+      else this.pendingDebt = (this.pendingDebt || 0) + DEBT_REPEAT;
     }
   }
 
@@ -2325,6 +2374,14 @@ class GameScene extends Phaser.Scene {
       if (this.shiftTimer <= 0) this.endShift(false);
     }
 
+    // Ambulance rescue: get the injured pedestrian to the hospital before time runs out
+    if (this.rescueActive) {
+      this.rescueTimer -= dt;
+      const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, this.hospitalPos.x, this.hospitalPos.y);
+      if (d < REACH_DIST + 30) this.endRescue(true);
+      else if (this.rescueTimer <= 0) this.endRescue(false);
+    }
+
     Bus.emit('ui-update', {
       highLevel:  this.highLevel,
       money:      this.money,
@@ -2332,6 +2389,7 @@ class GameScene extends Phaser.Scene {
       debt:       this.debt,
       hunted:     this.hunted,
       shakeProgress: this.hunted ? this.evadeTimer / SHAKE_TIME : 0,
+      rescue:     this.rescueActive ? Math.ceil(this.rescueTimer) : 0,
       speed:      Math.abs(this.playerSpeed),
       health:     this.health,
       timeOfDay:  this.timeOfDay,
