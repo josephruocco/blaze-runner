@@ -19,6 +19,11 @@ const PIXEL_FONT = '"Press Start 2P", monospace';
 
 /* ── Version + changelog (newest first). Bump when features ship. ── */
 const CHANGELOG = [
+  { v: '1.5', title: 'Uptown, High Roller', items: [
+    'Uptown is the high-roller district — jobs pay 60% more but the traffic\'s thick and the mafia hits harder',
+    'A neon CASINO landmark with a valet loop and limos parked out front',
+    'One-way avenues — follow the painted arrows or fight the flow',
+  ] },
   { v: '1.4', title: 'Easy / Hard + Shift Stakes', items: [
     'Easy / Hard difficulty picker on the city select',
     'Pizza runs are beat-the-clock — deliver in time or it\'s free',
@@ -96,7 +101,9 @@ const MAPS = [
   { name: 'Uptown', ground: 0x43385c, road: 0x504a5a,
     palette: [0x6a4a6a, 0x7a5a7a, 0x5a4a6a, 0x8a6a8a, 0x4a3a5a, 0x6a5a7a, 0x7a5a8a],
     poi: { hospital: [2,0], pizzeria: [1,1], gas: [3,2], store: [0,2] },
-    features: [{ type: 'roundabout', block: [2,2] }] },
+    trafficCount: 22, payMult: 1.6, mafiaAggro: 1.3,          // big money, big risk
+    oneWay: [{ axis: 'v', col: 8, dir: 1 }, { axis: 'v', col: 24, dir: -1 }],  // one-way avenues
+    features: [{ type: 'roundabout', block: [2,2] }, { type: 'casino', block: [0,0] }] },
 ];
 
 /* ── Global event bus (no Phaser dependency at load time) ── */
@@ -1353,6 +1360,25 @@ class GameScene extends Phaser.Scene {
       g.fillRect(0, j * TILE + TILE - 2, WORLD_W, 4);
     }
 
+    // One-way avenues: force traffic direction + paint arrows on top of the road
+    this.oneWayV = {}; this.oneWayH = {};
+    (M.oneWay || []).forEach(o => {
+      g.fillStyle(0xffdd44, 0.5);
+      if (o.axis === 'v') {
+        const cx = o.col * TILE + TILE; this.oneWayV[cx] = o.dir;
+        for (let y = 90; y < WORLD_H - 50; y += 190) {
+          if (o.dir > 0) g.fillTriangle(cx - 14, y, cx + 14, y, cx, y + 20);
+          else           g.fillTriangle(cx - 14, y + 20, cx + 14, y + 20, cx, y);
+        }
+      } else {
+        const cy = o.row * TILE + TILE; this.oneWayH[cy] = o.dir;
+        for (let x = 90; x < WORLD_W - 50; x += 190) {
+          if (o.dir > 0) g.fillTriangle(x, cy - 14, x, cy + 14, x + 20, cy);
+          else           g.fillTriangle(x + 20, cy - 14, x + 20, cy + 14, x, cy);
+        }
+      }
+    });
+
     // Buildings — start 2 tiles in from each road
     const bColors = M.palette;
     this.houseSpots = [];
@@ -1421,6 +1447,25 @@ class GameScene extends Phaser.Scene {
             }));
             this.add.text(bx + bw / 2, py + storeH / 2, '🛒 MARKET', {
               fontSize: '15px', fontFamily: 'Arial Black, Arial', color: '#ffffff', stroke: '#000', strokeThickness: 3
+            }).setOrigin(0.5).setDepth(5);
+          } else if (feat.type === 'casino') {
+            // Casino with a valet loop: paved ring you drive around, parked limos, neon
+            g.fillStyle(M.road); g.fillRect(px, py, pw, ph);
+            const bmg = 72, cbx = px + bmg, cby = py + bmg, cbw = pw - bmg * 2, cbh = ph - bmg * 2;
+            g.fillStyle(0x2a1636); g.fillRect(cbx, cby, cbw, cbh);
+            g.fillStyle(0x000000, 0.3); g.fillRect(cbx, cby, cbw, 8);
+            g.fillStyle(0xff3399); g.fillRect(cbx + cbw * 0.15, cby + cbh * 0.42, cbw * 0.7, 16);   // neon marquee
+            g.fillStyle(0xffdd33); for (let x = cbx + 8; x < cbx + cbw - 8; x += 18) g.fillRect(x, cby + 6, 7, 7);
+            const cwall = this.wallGroup.create(cbx + cbw / 2, cby + cbh / 2, 'pixel');
+            cwall.setVisible(false); cwall.setDisplaySize(cbw, cbh); cwall.refreshBody();
+            // parked limos in the valet ring (obstacles)
+            [[px + 34, py + ph * 0.5, 90], [px + pw - 34, py + ph * 0.5, 90], [px + pw * 0.5, py + ph - 34, 0]].forEach(l => {
+              this.add.image(l[0], l[1], 'car_limo').setDepth(3).setAngle(l[2]);
+              const w = this.wallGroup.create(l[0], l[1], 'pixel'); w.setVisible(false);
+              w.setDisplaySize(l[2] ? 46 : 26, l[2] ? 26 : 46); w.refreshBody();
+            });
+            this.add.text(bx + bw / 2, cby + cbh * 0.42 + 8, '🎰 CASINO', {
+              fontSize: '15px', fontFamily: 'Arial Black, Arial', color: '#ffdd33', stroke: '#3a1030', strokeThickness: 4
             }).setOrigin(0.5).setDepth(5);
           }
           continue;
@@ -1590,6 +1635,13 @@ class GameScene extends Phaser.Scene {
     hitG.generateTexture('car_hitman', 36, 56);
     hitG.destroy();
 
+    // Stretch limo (for the Uptown valet) — long, black, gold trim
+    const limG = this.make.graphics({ add: false });
+    this.drawCar(limG, 0x0e0e14, false, false);
+    limG.fillStyle(0xccaa33); limG.fillRect(4, 26, 28, 3);   // gold trim stripe
+    limG.generateTexture('car_limo', 36, 56);
+    limG.destroy();
+
     // Civilian traffic cars (a few colours)
     const trafficColors = [0x3366cc, 0x8a8a8a, 0xccaa33, 0x55aa66, 0xbb5544];
     this._trafficTexCount = trafficColors.length;
@@ -1665,6 +1717,8 @@ class GameScene extends Phaser.Scene {
       car._pri  = i;   // priority for breaking intersection ties (lower index wins)
       car.laneCenter = horizontal ? Phaser.Utils.Array.GetRandom(this.rowCenters)
                                   : Phaser.Utils.Array.GetRandom(this.colCenters);
+      const forced = this._forcedDir(car.axis, car.laneCenter);
+      if (forced != null) car.dir = forced;   // one-way avenue
       if (horizontal) car.x = Phaser.Math.Between(120, WORLD_W - 120);
       else            car.y = Phaser.Math.Between(120, this.southBound - 120);
       this._setTrafficVel(car);
@@ -1673,6 +1727,11 @@ class GameScene extends Phaser.Scene {
     }
     this.physics.add.collider(this.player, this.traffic, this.hitTraffic, null, this);
     this.physics.add.collider(this.npcs, this.traffic);   // pedestrians don't walk through cars
+  }
+
+  // Forced direction for a one-way road lane (undefined = two-way)
+  _forcedDir(axis, laneCenter) {
+    return axis === 'v' ? this.oneWayV[laneCenter] : this.oneWayH[laneCenter];
   }
 
   // Sets velocity + snaps the car to the correct side of its road (two-way lanes)
@@ -1709,7 +1768,14 @@ class GameScene extends Phaser.Scene {
         (car.axis === 'v' && ((car.y < 50 && car.dir < 0) || (car.y > this.southBound - 50 && car.dir > 0)));
       if (atEdge) {
         if (this.mapDef.highway) { this._recycleTraffic(car); return; }
-        car.dir *= -1; this._setTrafficVel(car);
+        const forced = this._forcedDir(car.axis, car.laneCenter);
+        if (forced != null) {
+          // One-way avenue: wrap to the opposite edge, keep flowing the same way
+          if (car.axis === 'v') car.y = forced > 0 ? 60 : this.southBound - 60;
+          else                  car.x = forced > 0 ? 60 : WORLD_W - 60;
+        } else {
+          car.dir *= -1; this._setTrafficVel(car);
+        }
       }
       // Randomly turn onto a crossing road at intersections (going nowhere in particular)
       const canTurn = this.time.now - (car._turnCd || 0) > 700;
@@ -1721,7 +1787,8 @@ class GameScene extends Phaser.Scene {
           if (canTurn && Math.random() < 0.3) {
             car.laneCenter = pc;
             car.axis = car.axis === 'h' ? 'v' : 'h';
-            car.dir = Math.random() < 0.5 ? 1 : -1;
+            const forced = this._forcedDir(car.axis, pc);
+            car.dir = forced != null ? forced : (Math.random() < 0.5 ? 1 : -1);
             car._turnCd = this.time.now;
             this._setTrafficVel(car);
           }
@@ -1890,7 +1957,8 @@ class GameScene extends Phaser.Scene {
       this.shiftCount++;
       const bonus = this._patientBonus || 0;   // healthier patient delivered = bigger bonus
       this._patientBonus = 0;
-      this.money += JOB_PAY + bonus;
+      const pay = Math.round((JOB_PAY + bonus) * (this.mapDef.payMult || 1));   // rich districts tip big
+      this.money += pay;
       SFX.playDropoff();
       if (this.debt > 0) {
         const pmt = Math.min(80, this.debt);
@@ -1902,7 +1970,7 @@ class GameScene extends Phaser.Scene {
       const aliveCount = this.npcs.getChildren().filter(n => n.alive).length;
       const toSpawn = Math.min(3, 40 - aliveCount);
       if (toSpawn > 0) this._spawnNPCs(toSpawn);
-      this.showStatus(bonus > 0 ? `❤️ Patient delivered! +$${JOB_PAY + bonus}` : `✅ Job complete! +$${JOB_PAY}`);
+      this.showStatus(bonus > 0 ? `❤️ Patient delivered! +$${pay}` : `✅ Job complete! +$${pay}`);
     } else {
       this.showStatus('⏰ Shift ended — no pay');
     }
@@ -2098,7 +2166,7 @@ class GameScene extends Phaser.Scene {
     h.setDepth(12);
     h.body.setSize(26, 44);
     h.setCollideWorldBounds(true);
-    h.speed = 250 + this.hitmen.getLength() * 15;
+    h.speed = (250 + this.hitmen.getLength() * 15) * (this.mapDef.mafiaAggro || 1);
     h.lastShotTime = 0;
   }
 
