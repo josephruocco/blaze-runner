@@ -19,6 +19,12 @@ const PIXEL_FONT = '"Press Start 2P", monospace';
 
 /* ── Version + changelog (newest first). Bump when features ship. ── */
 const CHANGELOG = [
+  { v: '1.4', title: 'Easy / Hard + Shift Stakes', items: [
+    'Easy / Hard difficulty picker on the city select',
+    'Pizza runs are beat-the-clock — deliver in time or it\'s free',
+    'Ambulance patients now have health — critical ones are a race against the clock',
+    'You only get jailed after a few kills (three on Easy, one on Hard)',
+  ] },
   { v: '1.3', title: 'Streets Alive', items: [
     'Only high-speed hits are fatal — clip someone in the ambulance and rush them to the hospital to save them',
     'Choose-your-city map picker before each run',
@@ -64,6 +70,12 @@ const SHAKE_DIST     = 700;    // px of separation needed to start shaking the c
 const SHAKE_TIME     = 6;      // seconds of separation to fully lose them
 const KILL_SPEED     = 230;    // below this a pedestrian is only injured, not killed
 const RESCUE_TIME    = 22;     // seconds to get an injured pedestrian to the hospital
+
+/* ── Difficulty: scales how punishing the shift mechanics are ── */
+const DIFFICULTIES = {
+  easy: { name: 'EASY', pizzaTime: 100, killsBeforeJail: 3, patientDrain: 1.2, criticalChance: 0.20 },
+  hard: { name: 'HARD', pizzaTime: 65,  killsBeforeJail: 1, patientDrain: 2.6, criticalChance: 0.50 },
+};
 
 /* ── Authored city maps: POIs land in different blocks [sc,sr] + own color theme.
    Picked at random each run so you don't always know where the hospital/pizza are. ── */
@@ -492,14 +504,41 @@ class MapSelectScene extends Phaser.Scene {
     rnd.on('pointerout',  () => rnd.setFillStyle(0x224422));
     rnd.on('pointerdown', () => this.launch(Phaser.Math.Between(0, MAPS.length - 1)));
 
-    this.add.text(W / 2, H - 24, 'Pick a city to start your shift', {
+    // Difficulty toggle
+    this.difficulty = 'easy';
+    this._diffBtns = {};
+    const diffY = randY + 76;
+    this.add.text(W / 2 - 156, diffY, 'DIFFICULTY', {
+      fontSize: '14px', fontFamily: 'Arial Black, Arial', color: '#88aa99'
+    }).setOrigin(1, 0.5);
+    const mkDiff = (x, key, label, color) => {
+      const b = this.add.rectangle(x, diffY, 118, 44, 0x223322).setStrokeStyle(2, 0x335533).setInteractive({ useHandCursor: true });
+      const t = this.add.text(x, diffY, label, { fontSize: '17px', fontFamily: 'Arial Black, Arial', color: '#ffffff' }).setOrigin(0.5);
+      this._diffBtns[key] = { b, t, color };
+      b.on('pointerdown', () => { this.difficulty = key; this.refreshDiff(); });
+    };
+    mkDiff(W / 2 - 62, 'easy', 'EASY', 0x2a6a2a);
+    mkDiff(W / 2 + 62, 'hard', 'HARD', 0x8a2a2a);
+    this.refreshDiff();
+
+    this.add.text(W / 2, H - 22, 'Pick a city to start your shift', {
       fontSize: '13px', fontFamily: 'Arial', color: '#66aa88'
     }).setOrigin(0.5);
   }
 
+  refreshDiff() {
+    Object.keys(this._diffBtns).forEach(k => {
+      const o = this._diffBtns[k], sel = k === this.difficulty;
+      o.b.setFillStyle(sel ? o.color : 0x223322);
+      o.b.setStrokeStyle(2, sel ? 0xffffff : 0x335533);
+      o.t.setColor(sel ? '#ffffff' : '#99aa99');
+    });
+  }
+
   launch(mapIndex) {
+    const difficulty = this.difficulty;
     this.cameras.main.fade(350, 0, 0, 0);
-    this.time.delayedCall(350, () => this.scene.start('Game', { mapIndex }));
+    this.time.delayedCall(350, () => this.scene.start('Game', { mapIndex, difficulty }));
   }
 }
 
@@ -694,6 +733,25 @@ class UIScene extends Phaser.Scene {
       fontSize: '17px', fontFamily: 'Arial Black, Arial', color: '#ff5555',
       stroke: '#000', strokeThickness: 3
     }).setOrigin(0.5, 0).setScrollFactor(0).setDepth(60);
+
+    // Pizza delivery countdown (shared top-center slot with the patient bar)
+    this.pizzaTimerText = this.add.text(W / 2, 62, '', {
+      fontSize: '17px', fontFamily: 'Arial Black, Arial', color: '#ffcc44', stroke: '#000', strokeThickness: 3
+    }).setOrigin(0.5, 0).setScrollFactor(0).setDepth(60);
+
+    // Ambulance patient health bar
+    this.patientLabel = this.add.text(W / 2, 60, 'PATIENT', {
+      fontSize: '11px', fontFamily: 'Arial Black, Arial', color: '#ff9999', stroke: '#000', strokeThickness: 2
+    }).setOrigin(0.5, 0).setScrollFactor(0).setDepth(60).setVisible(false);
+    this.patientBarBg = this.add.rectangle(W / 2, 84, 204, 12, 0x000000, 0.85)
+      .setScrollFactor(0).setDepth(60).setStrokeStyle(1, 0xff5555, 0.6).setVisible(false);
+    this.patientBar = this.add.rectangle(W / 2 - 100, 84, 0, 10, 0xff3333)
+      .setOrigin(0, 0.5).setScrollFactor(0).setDepth(61).setVisible(false);
+
+    // Difficulty label (under the clock)
+    this.diffLabel = this.add.text(W - 12, 84, '', {
+      fontSize: '11px', fontFamily: 'Arial Black, Arial', color: '#999999', stroke: '#000', strokeThickness: 2
+    }).setOrigin(1, 0).setScrollFactor(0).setDepth(60);
 
     // ── "Shaking them" evade bar (top-center, shown only while escaping) ──
     this.shakeLabel = this.add.text(W / 2, 58, 'SHAKING THEM', {
@@ -999,6 +1057,25 @@ class UIScene extends Phaser.Scene {
     this.debtText.setText(this.debt > 0 ? `🦈 LOAN SHARK: $${Math.floor(this.debt)} owed` : '');
     this.rescueText.setText(d.rescue ? `🚑 SAVE THEM — ${d.rescue}s to the hospital!` : '');
 
+    // Pizza delivery countdown
+    if (d.pizzaTimer >= 0) {
+      const t = d.pizzaTimer, mm = Math.floor(t / 60), ss = t % 60;
+      this.pizzaTimerText.setText(`🍕 ${mm}:${String(ss).padStart(2, '0')} — deliver or it's free`);
+      this.pizzaTimerText.setColor(t <= 15 ? '#ff5555' : '#ffcc44');
+    } else this.pizzaTimerText.setText('');
+
+    // Ambulance patient health bar
+    const showPatient = d.patient >= 0;
+    this.patientLabel.setVisible(showPatient);
+    this.patientBarBg.setVisible(showPatient);
+    this.patientBar.setVisible(showPatient);
+    if (showPatient) {
+      this.patientBar.width = Math.max(0, (d.patient / 100) * 200);
+      this.patientBar.setFillStyle(d.patient > 50 ? 0x44ff44 : d.patient > 25 ? 0xffaa00 : 0xff2222);
+    }
+
+    this.diffLabel.setText(d.difficulty || '');
+
     // Speedometer dial
     if (this.speedoG) {
       const g = this.speedoG; g.clear();
@@ -1120,7 +1197,10 @@ class UIScene extends Phaser.Scene {
 class GameScene extends Phaser.Scene {
   constructor() { super('Game'); }
 
-  init(d) { this._chosenMap = (d && typeof d.mapIndex === 'number') ? d.mapIndex : null; }
+  init(d) {
+    this._chosenMap = (d && typeof d.mapIndex === 'number') ? d.mapIndex : null;
+    this.diff = (d && DIFFICULTIES[d.difficulty]) || DIFFICULTIES.easy;
+  }
 
   create() {
     try {
@@ -1158,6 +1238,7 @@ class GameScene extends Phaser.Scene {
     this.shiftTimer       = 0;
     this.rescueActive     = false;
     this.rescueTimer      = 0;
+    this.patientHealth    = 0;      // >0 while carrying an ambulance patient
     this.gameActive       = true;
     this.manslaughterCount= 0;
     this.shiftCount       = 0;
@@ -1738,7 +1819,9 @@ class GameScene extends Phaser.Scene {
     this.jobType   = Math.random() < 0.5 ? 'pizza' : 'ambulance';
     this.jobPhase  = 'pickup';
     this.isOnShift = true;
-    this.shiftTimer = SHIFT_DURATION;
+    this.patientHealth = 0;
+    // Pizza is a beat-the-clock run; ambulance pressure comes from the patient's health
+    this.shiftTimer = this.jobType === 'pizza' ? this.diff.pizzaTime : SHIFT_DURATION;
 
     this.player.setTexture(this.jobType === 'pizza' ? 'car_pizza' : 'car_amb');
 
@@ -1805,7 +1888,9 @@ class GameScene extends Phaser.Scene {
 
     if (success) {
       this.shiftCount++;
-      this.money += JOB_PAY;
+      const bonus = this._patientBonus || 0;   // healthier patient delivered = bigger bonus
+      this._patientBonus = 0;
+      this.money += JOB_PAY + bonus;
       SFX.playDropoff();
       if (this.debt > 0) {
         const pmt = Math.min(80, this.debt);
@@ -1817,7 +1902,7 @@ class GameScene extends Phaser.Scene {
       const aliveCount = this.npcs.getChildren().filter(n => n.alive).length;
       const toSpawn = Math.min(3, 40 - aliveCount);
       if (toSpawn > 0) this._spawnNPCs(toSpawn);
-      this.showStatus(`✅ Job complete! +$${JOB_PAY}`);
+      this.showStatus(bonus > 0 ? `❤️ Patient delivered! +$${JOB_PAY + bonus}` : `✅ Job complete! +$${JOB_PAY}`);
     } else {
       this.showStatus('⏰ Shift ended — no pay');
     }
@@ -1915,9 +2000,16 @@ class GameScene extends Phaser.Scene {
       // Too fast — fatal. Vehicular manslaughter.
       npc.setTint(0x880000);
       this.manslaughterCount++;
-      this.showStatus('💀 VEHICULAR MANSLAUGHTER!');
-      if (!this.hasLoanShark) this.time.delayedCall(1500, () => this.activateLoanShark());
-      else { this.pendingDebt = (this.pendingDebt || 0) + DEBT_REPEAT; this.showStatus(`💀 MANSLAUGHTER! +$${DEBT_REPEAT} owed`); }
+      if (this.hasLoanShark) {
+        this.pendingDebt = (this.pendingDebt || 0) + DEBT_REPEAT;
+        this.showStatus(`💀 MANSLAUGHTER! +$${DEBT_REPEAT} owed`);
+      } else if (this.manslaughterCount >= this.diff.killsBeforeJail) {
+        this.showStatus('💀 VEHICULAR MANSLAUGHTER!');
+        this.time.delayedCall(1500, () => this.activateLoanShark());
+      } else {
+        const left = this.diff.killsBeforeJail - this.manslaughterCount;
+        this.showStatus(`💀 Manslaughter! ${left} more and the loan shark comes for you...`);
+      }
       return;
     }
 
@@ -2165,11 +2257,20 @@ class GameScene extends Phaser.Scene {
         this.dropoffMarker.setPosition(this.dropoffDest.x, this.dropoffDest.y - 45);
         this.dropoffMarker.setVisible(true);
         SFX.playPickup();
-        const msg = this.jobType === 'pizza'
-          ? '🍕 Pizza picked up! Deliver it!'
-          : '🚑 Patient loaded! Drive to Hospital!';
+        let msg;
+        if (this.jobType === 'pizza') {
+          msg = '🍕 Pizza picked up! Deliver it!';
+        } else {
+          // Randomised patient — sometimes stable, sometimes critical
+          const critical = Math.random() < this.diff.criticalChance;
+          this.patientHealth = critical ? Phaser.Math.Between(30, 55) : Phaser.Math.Between(70, 100);
+          msg = critical ? '🚑 CRITICAL patient! Race to the Hospital!' : '🚑 Patient loaded! Drive to Hospital!';
+        }
         this.showStatus(msg);
       } else {
+        // Ambulance dropoff: healthier patient = bigger bonus
+        if (this.jobType === 'ambulance') this._patientBonus = Math.round(this.patientHealth);
+        this.patientHealth = 0;
         this.endShift(true);
       }
     }
@@ -2374,6 +2475,16 @@ class GameScene extends Phaser.Scene {
       if (this.shiftTimer <= 0) this.endShift(false);
     }
 
+    // Carrying an ambulance patient — their health ticks down; don't let them flatline
+    if (this.isOnShift && this.jobType === 'ambulance' && this.jobPhase === 'dropoff' && this.patientHealth > 0) {
+      this.patientHealth = Math.max(0, this.patientHealth - this.diff.patientDrain * dt);
+      if (this.patientHealth <= 0) {
+        this.showStatus('💀 You lost the patient...');
+        this.patientHealth = 0;
+        this.endShift(false);
+      }
+    }
+
     // Ambulance rescue: get the injured pedestrian to the hospital before time runs out
     if (this.rescueActive) {
       this.rescueTimer -= dt;
@@ -2390,6 +2501,9 @@ class GameScene extends Phaser.Scene {
       hunted:     this.hunted,
       shakeProgress: this.hunted ? this.evadeTimer / SHAKE_TIME : 0,
       rescue:     this.rescueActive ? Math.ceil(this.rescueTimer) : 0,
+      patient:    (this.isOnShift && this.jobType === 'ambulance' && this.jobPhase === 'dropoff') ? this.patientHealth : -1,
+      pizzaTimer: (this.isOnShift && this.jobType === 'pizza') ? Math.ceil(this.shiftTimer) : -1,
+      difficulty: this.diff.name,
       speed:      Math.abs(this.playerSpeed),
       health:     this.health,
       timeOfDay:  this.timeOfDay,
