@@ -22,6 +22,7 @@ const CHANGELOG = [
   { v: '1.3', title: 'Streets Alive', items: [
     'Choose-your-city map picker before each run',
     'City landmarks: Suburbia park, Uptown roundabout, Docks pier',
+    'Downtown rush hour — heavy traffic + a highway on/off ramp',
     'Two-way traffic — cars keep their lane and don\'t pile up',
   ] },
   { v: '1.2', title: 'Driving Polish', items: [
@@ -64,7 +65,8 @@ const SHAKE_TIME     = 6;      // seconds of separation to fully lose them
 const MAPS = [
   { name: 'Downtown', ground: 0x2e5c28, road: 0x4a4a5a,
     palette: [0x7a4030, 0x404060, 0x305050, 0x504030, 0x403050, 0x305030, 0x603040],
-    poi: { hospital: [0,0], pizzeria: [2,2], gas: [1,3], store: [3,1] } },
+    poi: { hospital: [0,0], pizzeria: [2,2], gas: [1,3], store: [3,1] },
+    trafficCount: 26, highway: true },
   { name: 'Suburbia', ground: 0x3a6b2e, road: 0x565c56,
     palette: [0x8a6a4a, 0x6a7a5a, 0x7a5a4a, 0x5a6a6a, 0x8a7a5a, 0x6a5a4a, 0x7a6a5a],
     poi: { hospital: [3,0], pizzeria: [0,3], gas: [2,1], store: [1,2] },
@@ -1354,6 +1356,17 @@ class GameScene extends Phaser.Scene {
         fontSize: '16px', fontFamily: 'Arial Black, Arial', color: '#ffe4a0', stroke: '#3a2a10', strokeThickness: 3
       }).setOrigin(0.5).setDepth(5);
     }
+
+    // ── Highway on/off ramp at the top edge (cars stream in and out here) ──
+    if (M.highway) {
+      const ex = (this.roadCols[1] || RI) * TILE + TILE;
+      g.fillStyle(M.road); g.fillRect(ex - TILE - 24, 0, TILE * 2 + 48, TILE + 40);   // widened ramp mouth
+      g.fillStyle(0xffdd44, 0.85);
+      for (let k = 0; k < 3; k++) { const yy = 26 + k * 22; g.fillTriangle(ex - 15, yy, ex + 15, yy, ex, yy + 15); }
+      this.add.text(ex, 104, '🛣️ HIGHWAY', {
+        fontSize: '14px', fontFamily: 'Arial Black, Arial', color: '#ffdd66', stroke: '#000', strokeThickness: 3
+      }).setOrigin(0.5).setDepth(5);
+    }
   }
 
   /* ── Textures ── */
@@ -1437,7 +1450,8 @@ class GameScene extends Phaser.Scene {
     this.trafficList = [];
     this.colCenters = this.roadCols.map(c => c * TILE + TILE);
     this.rowCenters = this.roadRows.map(r => r * TILE + TILE).filter(y => y < this.southBound - 40);
-    for (let i = 0; i < TRAFFIC_COUNT; i++) {
+    const trafficN = this.mapDef.trafficCount || TRAFFIC_COUNT;
+    for (let i = 0; i < trafficN; i++) {
       const horizontal = Math.random() < 0.5;
       const car = this.traffic.create(0, 0, 'car_traffic' + Phaser.Math.Between(0, this._trafficTexCount - 1));
       car.setDepth(11);
@@ -1472,16 +1486,28 @@ class GameScene extends Phaser.Scene {
     }
   }
 
+  // Highway maps: send a car back onto the map from a random edge, driving inward
+  _recycleTraffic(car) {
+    car.speed = Phaser.Math.Between(70, 205);
+    const side = Phaser.Math.Between(0, 3);
+    if (side === 0)      { car.axis = 'v'; car.dir =  1; car.laneCenter = Phaser.Utils.Array.GetRandom(this.colCenters); car.y = 70; }
+    else if (side === 1) { car.axis = 'v'; car.dir = -1; car.laneCenter = Phaser.Utils.Array.GetRandom(this.colCenters); car.y = this.southBound - 70; }
+    else if (side === 2) { car.axis = 'h'; car.dir =  1; car.laneCenter = Phaser.Utils.Array.GetRandom(this.rowCenters); car.x = 70; }
+    else                 { car.axis = 'h'; car.dir = -1; car.laneCenter = Phaser.Utils.Array.GetRandom(this.rowCenters); car.x = WORLD_W - 70; }
+    this._setTrafficVel(car);
+    car._prevX = car.x; car._prevY = car.y;
+  }
+
   updateTraffic() {
     this.trafficList.forEach(car => {
       if (!car.active) return;
-      // Bounce off the world edges (cross to the opposite-direction lane)
-      if (car.axis === 'h') {
-        if (car.x < 60 && car.dir < 0) { car.dir = 1; this._setTrafficVel(car); }
-        else if (car.x > WORLD_W - 60 && car.dir > 0) { car.dir = -1; this._setTrafficVel(car); }
-      } else {
-        if (car.y < 60 && car.dir < 0) { car.dir = 1; this._setTrafficVel(car); }
-        else if (car.y > this.southBound - 60 && car.dir > 0) { car.dir = -1; this._setTrafficVel(car); }
+      // At a map edge: highway maps drive off and re-enter (constant flow); others bounce
+      const atEdge =
+        (car.axis === 'h' && ((car.x < 50 && car.dir < 0) || (car.x > WORLD_W - 50 && car.dir > 0))) ||
+        (car.axis === 'v' && ((car.y < 50 && car.dir < 0) || (car.y > this.southBound - 50 && car.dir > 0)));
+      if (atEdge) {
+        if (this.mapDef.highway) { this._recycleTraffic(car); return; }
+        car.dir *= -1; this._setTrafficVel(car);
       }
       // Randomly turn onto a crossing road at intersections (going nowhere in particular)
       const canTurn = this.time.now - (car._turnCd || 0) > 700;
