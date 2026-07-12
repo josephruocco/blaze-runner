@@ -30,6 +30,8 @@ const DEBT_PER_KILL  = 2000;   // first manslaughter puts you here
 const DEBT_REPEAT    = 1500;   // each additional kill adds this
 const HITMAN_IFRAMES = 1200;   // ms of invulnerability after a ram
 const BOLD_NIGHTS    = 3;      // nights owing before the crew hunts in daylight too
+const SHAKE_DIST     = 700;    // px of separation needed to start shaking the crew
+const SHAKE_TIME     = 6;      // seconds of separation to fully lose them
 
 /* ── Global event bus (no Phaser dependency at load time) ── */
 const Bus = {
@@ -526,6 +528,16 @@ class UIScene extends Phaser.Scene {
       stroke: '#000', strokeThickness: 2
     }).setOrigin(0.5, 0).setScrollFactor(0);
 
+    // ── "Shaking them" evade bar (top-center, shown only while escaping) ──
+    this.shakeLabel = this.add.text(W / 2, 58, 'SHAKING THEM', {
+      fontSize: '12px', fontFamily: 'Arial Black, Arial', color: '#ffff66',
+      stroke: '#000', strokeThickness: 3
+    }).setOrigin(0.5, 0).setScrollFactor(0).setDepth(100).setVisible(false);
+    this.shakeBarBg = this.add.rectangle(W / 2, 80, 224, 12, 0x000000, 0.85)
+      .setScrollFactor(0).setDepth(100).setStrokeStyle(1, 0xffff66, 0.6).setVisible(false);
+    this.shakeBarFill = this.add.rectangle(W / 2 - 110, 80, 0, 10, 0x33ff66)
+      .setOrigin(0, 0.5).setScrollFactor(0).setDepth(101).setVisible(false);
+
     this.fxText = this.add.text(70, H / 2, '', {
       fontSize: '13px', fontFamily: 'Arial', color: '#88ff44',
       stroke: '#000', strokeThickness: 2, lineSpacing: 4
@@ -756,6 +768,14 @@ class UIScene extends Phaser.Scene {
     this.jobText.setText(d.jobStatus || '');
     this.debtText.setText(this.debt > 0 ? `🦈 LOAN SHARK: $${Math.floor(this.debt)} owed` : '');
 
+    // Shake-them evade bar
+    const shake = d.shakeProgress || 0;
+    const showShake = shake > 0.001;
+    this.shakeLabel.setVisible(showShake);
+    this.shakeBarBg.setVisible(showShake);
+    this.shakeBarFill.setVisible(showShake);
+    if (showShake) this.shakeBarFill.width = 220 * Math.min(1, shake);
+
     if (d.health !== undefined) {
       this.healthBar.width = Math.max(0, (d.health / 100) * 120);
       const hc = d.health > 60 ? 0x44ff44 : d.health > 30 ? 0xffaa00 : 0xff2222;
@@ -898,6 +918,7 @@ class GameScene extends Phaser.Scene {
     this.bullets    = this.physics.add.group();
     this.hitmen     = this.physics.add.group();
     this.hunted      = false;  // is the current shift a hunted (crew active) shift
+    this.evadeTimer  = 0;      // seconds of separation built up toward shaking the crew
     this.nightsOwed  = 0;      // night shifts started while still in debt
     this.invulnUntil = 0;      // i-frame timestamp after a ram
     this.touch = { up: false, down: false, left: false, right: false, brake: false, interact: false, pause: false,
@@ -1398,6 +1419,15 @@ class GameScene extends Phaser.Scene {
     this.showStatus(`🦈 Loan Shark bailed you out! $${DEBT_PER_KILL} debt — pay it down or the crew hunts you after dark.`);
   }
 
+  loseTheCrew() {
+    this.hunted = false;
+    this.evadeTimer = 0;
+    this.hitmen.clear(true, true);
+    this.bullets.clear(true, true);
+    this.cameras.main.flash(400, 0, 140, 60);
+    this.showStatus('🏁 LOST THEM! The crew gave up — for now.');
+  }
+
   spawnHitman() {
     if (!this.gameActive || this.hitmen.getLength() >= 3) return;
     const roadCols = [0, RI, RI * 2, RI * 3];
@@ -1726,11 +1756,13 @@ class GameScene extends Phaser.Scene {
 
     // Hitmen chase & drive-by — only during a hunted shift
     if (this.hunted) {
+      let nearest = Infinity;
       this.hitmen.getChildren().forEach(h => {
         if (!h.active) return;
         const dx = this.player.x - h.x;
         const dy = this.player.y - h.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < nearest) nearest = dist;
         const angle = Math.atan2(dy, dx);
         h.setVelocity(Math.cos(angle) * h.speed, Math.sin(angle) * h.speed);
         h.setAngle(angle * Phaser.Math.RAD_TO_DEG + 90);
@@ -1740,6 +1772,16 @@ class GameScene extends Phaser.Scene {
           h.lastShotTime = time;
         }
       });
+
+      // Shake-them evade meter: hold the crew far enough away for long enough → lose them
+      if (this.hitmen.getLength() > 0 && nearest > SHAKE_DIST) {
+        this.evadeTimer += dt;
+        if (this.evadeTimer >= SHAKE_TIME) this.loseTheCrew();
+      } else {
+        this.evadeTimer = Math.max(0, this.evadeTimer - dt * 2);  // drains faster when they close in
+      }
+    } else {
+      this.evadeTimer = 0;
     }
 
     this.checkJobProx();
@@ -1757,6 +1799,7 @@ class GameScene extends Phaser.Scene {
       score:      this.score,
       debt:       this.debt,
       hunted:     this.hunted,
+      shakeProgress: this.hunted ? this.evadeTimer / SHAKE_TIME : 0,
       health:     this.health,
       timeOfDay:  this.timeOfDay,
       jobStatus:  this.getJobStatus(),
