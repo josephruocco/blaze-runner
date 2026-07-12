@@ -349,7 +349,7 @@ class MenuScene extends Phaser.Scene {
       fontSize: '18px', fontFamily: 'Arial', color: '#cfe8d6', fontStyle: 'italic'
     }).setOrigin(0.5);
 
-    this.add.text(W / 2, H / 2 + 90, 'WASD / Arrows — drive   SHIFT — sprint   SPACE — brake   E — interact   ? — help', {
+    this.add.text(W / 2, H / 2 + 90, 'WASD / Arrows: drive   SHIFT: sprint   SPACE: brake   E: interact   ?: help', {
       fontSize: '15px', fontFamily: 'Arial', color: '#8aa596'
     }).setOrigin(0.5);
 
@@ -761,7 +761,7 @@ class UIScene extends Phaser.Scene {
     // ── Pause overlay ──
     this.pauseOverlay = this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.6)
       .setScrollFactor(0).setDepth(150).setVisible(false);
-    this.pauseText = this.add.text(W / 2, H / 2, 'PAUSED\n\nP — resume\nM — mute / unmute\n? — controls', {
+    this.pauseText = this.add.text(W / 2, H / 2, 'PAUSED\n\nP: unpause\nM: mute / unmute\n?: controls', {
       fontSize: '28px', fontFamily: 'Arial Black, Arial', color: '#00ff88',
       align: 'center', stroke: '#000', strokeThickness: 4, lineSpacing: 10
     }).setOrigin(0.5).setScrollFactor(0).setDepth(151).setVisible(false);
