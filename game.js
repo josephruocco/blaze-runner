@@ -21,6 +21,7 @@ const PIXEL_FONT = '"Press Start 2P", monospace';
 const CHANGELOG = [
   { v: '1.3', title: 'Streets Alive', items: [
     'Choose-your-city map picker before each run',
+    'Tap-friendly pause menu with an End Game option',
     'City landmarks: Suburbia park, Uptown roundabout',
     'Docks: beach, boardwalk & delivery piers you drive onto',
     'Downtown rush hour — heavy traffic + a highway on/off ramp',
@@ -96,10 +97,16 @@ class SoundEngine {
 
   init() {
     if (this.ctx) return;
-    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+    try { this.ctx = new (window.AudioContext || window.webkitAudioContext)(); }
+    catch (e) { this.ctx = null; }   // audio unavailable (e.g. locked-down mobile) — game runs silent
   }
 
-  _resume() { if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume(); }
+  _resume() {
+    if (this.ctx && this.ctx.state === 'suspended') {
+      const p = this.ctx.resume();
+      if (p && p.catch) p.catch(() => {});   // ignore "failed to start the audio device" on mobile
+    }
+  }
 
   startEngine() {
     if (!this.ctx) return;
@@ -819,13 +826,8 @@ class UIScene extends Phaser.Scene {
     helpBtn.on('pointerdown', toggleHelp);
     this.input.keyboard.on('keydown-QUESTION_MARK', toggleHelp);
 
-    // ── Pause overlay ──
-    this.pauseOverlay = this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.6)
-      .setScrollFactor(0).setDepth(150).setVisible(false);
-    this.pauseText = this.add.text(W / 2, H / 2, 'PAUSED\n\nP: unpause\nM: mute / unmute\n?: controls', {
-      fontSize: '28px', fontFamily: 'Arial Black, Arial', color: '#00ff88',
-      align: 'center', stroke: '#000', strokeThickness: 4, lineSpacing: 10
-    }).setOrigin(0.5).setScrollFactor(0).setDepth(151).setVisible(false);
+    // ── Pause menu (tappable buttons) ──
+    this.buildPauseMenu();
 
     // ── Touch controls (mobile only) ──
     if (this.isTouch) this.buildTouchControls();
@@ -833,9 +835,69 @@ class UIScene extends Phaser.Scene {
     Bus.on('ui-update', this.onUpdate, this);
     Bus.on('paranoid',  this.showParanoid, this);
     Bus.on('pause', (p) => {
-      this.pauseOverlay.setVisible(p);
-      this.pauseText.setVisible(p);
+      this.pauseObjs.forEach(o => o.setVisible(p));
+      if (!p) this.showEndConfirm(false);
     });
+  }
+
+  buildPauseMenu() {
+    this.pauseObjs = [];
+    this.confirmObjs = [];
+
+    const scrim = this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.72)
+      .setScrollFactor(0).setDepth(170).setVisible(false).setInteractive();
+    const title = this.add.text(W / 2, H / 2 - 160, 'PAUSED', {
+      fontSize: '40px', fontFamily: PIXEL_FONT, color: '#00ff88', stroke: '#000', strokeThickness: 5
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(171).setVisible(false);
+    this.pauseObjs.push(scrim, title);
+
+    const mkBtn = (y, w, label, color, hover, cb, store, depth) => {
+      const btn = this.add.rectangle(W / 2, y, w, 54, color)
+        .setScrollFactor(0).setDepth(depth).setStrokeStyle(2, 0xffffff, 0.5)
+        .setInteractive({ useHandCursor: true }).setVisible(false);
+      const txt = this.add.text(W / 2, y, label, {
+        fontSize: '19px', fontFamily: 'Arial Black, Arial', color: '#ffffff'
+      }).setOrigin(0.5).setScrollFactor(0).setDepth(depth + 1).setVisible(false);
+      btn.on('pointerover', () => btn.setFillStyle(hover));
+      btn.on('pointerout',  () => btn.setFillStyle(color));
+      btn.on('pointerdown', cb);
+      store.push(btn, txt);
+      return { btn, txt };
+    };
+
+    mkBtn(H / 2 - 70, 300, '▶  RESUME', 0x007733, 0x00aa44, () => Bus.emit('touch', 'pause', true), this.pauseObjs, 171);
+    const mute = mkBtn(H / 2, 300, SFX.musicMuted ? '🔇  UNMUTE' : '🔊  MUTE', 0x2a4a6a, 0x3a6390, () => {
+      const m = SFX.toggleMute();
+      mute.txt.setText(m ? '🔇  UNMUTE' : '🔊  MUTE');
+      if (this.muteBtn) this.muteBtn.setText(m ? '🔇' : '🔊');
+    }, this.pauseObjs, 171);
+    mkBtn(H / 2 + 70, 300, '⏹  END GAME', 0x8a2222, 0xb03030, () => this.showEndConfirm(true), this.pauseObjs, 171);
+
+    // Confirmation dialog (over the pause menu)
+    const cpanel = this.add.rectangle(W / 2, H / 2, 500, 240, 0x1a0a0a, 0.98)
+      .setStrokeStyle(2, 0xff5555).setScrollFactor(0).setDepth(180).setVisible(false).setInteractive();
+    const cq = this.add.text(W / 2, H / 2 - 70, 'End the game?', {
+      fontSize: '24px', fontFamily: 'Arial Black, Arial', color: '#ffffff'
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(181).setVisible(false);
+    const csub = this.add.text(W / 2, H / 2 - 38, "You'll restart from the beginning.", {
+      fontSize: '14px', fontFamily: 'Arial', color: '#ccaaaa'
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(181).setVisible(false);
+    this.confirmObjs.push(cpanel, cq, csub);
+    mkBtn(H / 2 + 20, 260, 'YES, END GAME', 0x8a2222, 0xb03030, () => this.endGame(), this.confirmObjs, 181);
+    mkBtn(H / 2 + 84, 260, 'KEEP PLAYING', 0x2a5a2a, 0x3a7a3a, () => this.showEndConfirm(false), this.confirmObjs, 181);
+  }
+
+  showEndConfirm(show) {
+    this.confirmObjs.forEach(o => o.setVisible(show));
+  }
+
+  endGame() {
+    SFX.stopMusic();
+    Bus.removeAllListeners();
+    this.scene.stop('Game');
+    this.scene.stop('TimeOff');
+    this.scene.start('Menu');
+    this.scene.stop();   // stop this UI scene last
   }
 
   buildTouchControls() {
