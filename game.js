@@ -41,7 +41,8 @@ const MAPS = [
     poi: { hospital: [0,0], pizzeria: [2,2], gas: [1,3], store: [3,1] } },
   { name: 'Suburbia', ground: 0x3a6b2e, road: 0x565c56,
     palette: [0x8a6a4a, 0x6a7a5a, 0x7a5a4a, 0x5a6a6a, 0x8a7a5a, 0x6a5a4a, 0x7a6a5a],
-    poi: { hospital: [3,0], pizzeria: [0,3], gas: [2,1], store: [1,2] } },
+    poi: { hospital: [3,0], pizzeria: [0,3], gas: [2,1], store: [1,2] },
+    feature: { type: 'park', block: [2,2] } },
   { name: 'The Docks', ground: 0x2a4a55, road: 0x40484f,
     palette: [0x4a5a6a, 0x3a4a5a, 0x5a4a3a, 0x4a4a4a, 0x2a3a4a, 0x5a5a4a, 0x3a5a5a],
     poi: { hospital: [0,3], pizzeria: [3,3], gas: [1,0], store: [2,1] } },
@@ -957,6 +958,7 @@ class GameScene extends Phaser.Scene {
     this.storePos         = null;
     this.pickupDest       = null;
     this.dropoffDest      = null;
+    this.parkArea         = null;
 
     this.wallGroup  = this.physics.add.staticGroup();
     this.npcs       = this.physics.add.group();
@@ -1072,6 +1074,23 @@ class GameScene extends Phaser.Scene {
         const bh = Math.min((RI - 2) * TILE, borderRow * TILE - by);
         if (bw <= 0 || bh <= 0) continue;
         const mg = 12;
+
+        // Drive-through park (a map feature) — grass, trees, no wall, extra pedestrians
+        if (M.feature && M.feature.type === 'park' && sc === M.feature.block[0] && sr === M.feature.block[1]) {
+          const px = bx + mg, py = by + mg, pw = bw - mg * 2, ph = bh - mg * 2;
+          g.fillStyle(0x3f7a34); g.fillRect(px, py, pw, ph);
+          g.fillStyle(0x8a7a5a, 0.45); g.fillRect(px, py + ph / 2 - 9, pw, 18);   // path
+          [[px+42,py+42],[px+pw-42,py+54],[px+pw-58,py+ph-48],[px+52,py+ph-42],[px+pw/2,py+40]].forEach(t => {
+            g.fillStyle(0x4a2f16); g.fillRect(t[0] - 3, t[1], 6, 15);
+            g.fillStyle(0x2e6b28); g.fillCircle(t[0], t[1], 17);
+            g.fillStyle(0x3f8a36); g.fillCircle(t[0] - 5, t[1] - 5, 9);
+          });
+          this.add.text(bx + bw / 2, by + bh / 2, '🌳 PARK', {
+            fontSize: '15px', fontFamily: 'Arial Black, Arial', color: '#c7efa0', stroke: '#112233', strokeThickness: 3
+          }).setOrigin(0.5).setDepth(5);
+          this.parkArea = { x: px, y: py, w: pw, h: ph };
+          continue;
+        }
 
         const isHosp  = sc === M.poi.hospital[0] && sr === M.poi.hospital[1];
         const isPizz  = sc === M.poi.pizzeria[0] && sr === M.poi.pizzeria[1];
@@ -1218,6 +1237,24 @@ class GameScene extends Phaser.Scene {
   buildNPCs() {
     this.npcList = [];
     this._spawnNPCs(NPC_COUNT);
+    if (this.parkArea) this._spawnParkNPCs(5);
+  }
+
+  _spawnParkNPCs(count) {
+    const a = this.parkArea;
+    for (let i = 0; i < count; i++) {
+      const x = a.x + Phaser.Math.Between(20, a.w - 20);
+      const y = a.y + Phaser.Math.Between(20, a.h - 20);
+      const npc = this.npcs.create(x, y, 'npc');
+      npc.setDepth(10);
+      npc.body.setSize(14, 32);
+      npc.setCollideWorldBounds(true);
+      npc.alive     = true;
+      npc.walkTimer = Phaser.Math.Between(800, 2500);
+      npc.walkDir   = Phaser.Math.Between(0, 3);
+      npc.walkSpeed = Phaser.Math.Between(30, 60);
+      this.npcList.push(npc);
+    }
   }
 
   _spawnNPCs(count) {
