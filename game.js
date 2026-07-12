@@ -22,7 +22,7 @@ const CHANGELOG = [
   { v: '1.3', title: 'Streets Alive', items: [
     'Choose-your-city map picker before each run',
     'Tap-friendly pause menu with an End Game option',
-    'City landmarks: Suburbia park, Uptown roundabout',
+    'City landmarks: Suburbia park + supermarket lot, Uptown roundabout',
     'Docks: beach, boardwalk & delivery piers you drive onto',
     'Downtown rush hour — heavy traffic + a highway on/off ramp',
     'Two-way traffic — cars keep their lane and don\'t pile up',
@@ -72,7 +72,7 @@ const MAPS = [
   { name: 'Suburbia', ground: 0x3a6b2e, road: 0x565c56,
     palette: [0x8a6a4a, 0x6a7a5a, 0x7a5a4a, 0x5a6a6a, 0x8a7a5a, 0x6a5a4a, 0x7a6a5a],
     poi: { hospital: [3,0], pizzeria: [0,3], gas: [2,1], store: [1,2] },
-    feature: { type: 'park', block: [2,2] } },
+    features: [{ type: 'park', block: [2,2] }, { type: 'lot', block: [1,1] }] },
   { name: 'The Docks', ground: 0x2a4a55, road: 0x40484f,
     palette: [0x4a5a6a, 0x3a4a5a, 0x5a4a3a, 0x4a4a4a, 0x2a3a4a, 0x5a5a4a, 0x3a5a5a],
     poi: { hospital: [0,0], pizzeria: [3,1], gas: [2,0], store: [1,2] },
@@ -80,7 +80,7 @@ const MAPS = [
   { name: 'Uptown', ground: 0x43385c, road: 0x504a5a,
     palette: [0x6a4a6a, 0x7a5a7a, 0x5a4a6a, 0x8a6a8a, 0x4a3a5a, 0x6a5a7a, 0x7a5a8a],
     poi: { hospital: [2,0], pizzeria: [1,1], gas: [3,2], store: [0,2] },
-    feature: { type: 'roundabout', block: [2,2] } },
+    features: [{ type: 'roundabout', block: [2,2] }] },
 ];
 
 /* ── Global event bus (no Phaser dependency at load time) ── */
@@ -1277,9 +1277,10 @@ class GameScene extends Phaser.Scene {
         const mg = 12;
 
         // Map features — special blocks drawn instead of a building
-        if (M.feature && sc === M.feature.block[0] && sr === M.feature.block[1]) {
+        const feat = (M.features || []).find(f => f.block[0] === sc && f.block[1] === sr);
+        if (feat) {
           const px = bx + mg, py = by + mg, pw = bw - mg * 2, ph = bh - mg * 2;
-          if (M.feature.type === 'park') {
+          if (feat.type === 'park') {
             // Drive-through park: grass, trees, path, no wall, extra pedestrians
             g.fillStyle(0x3f7a34); g.fillRect(px, py, pw, ph);
             g.fillStyle(0x8a7a5a, 0.45); g.fillRect(px, py + ph / 2 - 9, pw, 18);
@@ -1292,7 +1293,7 @@ class GameScene extends Phaser.Scene {
               fontSize: '15px', fontFamily: 'Arial Black, Arial', color: '#c7efa0', stroke: '#112233', strokeThickness: 3
             }).setOrigin(0.5).setDepth(5);
             this.parkArea = { x: px, y: py, w: pw, h: ph };
-          } else if (M.feature.type === 'roundabout') {
+          } else if (feat.type === 'roundabout') {
             // Fountain roundabout: paved drivable ring around a solid central island
             g.fillStyle(M.road); g.fillRect(px, py, pw, ph);
             const fcx = bx + bw / 2, fcy = by + bh / 2, fr = Math.min(pw, ph) * 0.26;
@@ -1304,6 +1305,29 @@ class GameScene extends Phaser.Scene {
             wall.setVisible(false); wall.setDisplaySize(iw, iw); wall.refreshBody();
             this.add.text(fcx, fcy - fr - 14, '⛲ PLAZA', {
               fontSize: '14px', fontFamily: 'Arial Black, Arial', color: '#dfeaf5', stroke: '#112233', strokeThickness: 3
+            }).setOrigin(0.5).setDepth(5);
+          } else if (feat.type === 'lot') {
+            // Supermarket at the back + a drivable parking lot with parked cars to weave around
+            const storeH = Math.round(ph * 0.4);
+            g.fillStyle(0x6a6a7a); g.fillRect(px, py, pw, storeH);                       // market building
+            g.fillStyle(0x000000, 0.25); g.fillRect(px, py, pw, 7);
+            g.fillStyle(0x88ccff, 0.55); for (let x = px + 16; x < px + pw - 24; x += 40) g.fillRect(x, py + storeH - 22, 26, 14);
+            const swall = this.wallGroup.create(px + pw / 2, py + storeH / 2, 'pixel');
+            swall.setVisible(false); swall.setDisplaySize(pw, storeH); swall.refreshBody();
+            g.fillStyle(0x3a3a44); g.fillRect(px, py + storeH, pw, ph - storeH);          // asphalt lot
+            g.fillStyle(0xffff88, 0.35);                                                  // parking stripes
+            for (let x = px + 20; x < px + pw - 10; x += 32) { g.fillRect(x, py + storeH + 10, 2, 34); g.fillRect(x, py + ph - 46, 2, 34); }
+            const rowY = [py + storeH + 30, py + ph - 30];                                // parked cars (obstacles)
+            rowY.forEach((ry, ri) => [0, 1, 3, 4, 6].forEach(k => {
+              if ((k + ri) % 3 === 0) return;   // leave some empty slots to drive through
+              const cxp = px + 34 + k * 32;
+              if (cxp > px + pw - 20) return;
+              this.add.image(cxp, ry, 'car_traffic' + ((k + ri) % this._trafficTexCount)).setDepth(3).setAngle(ri ? 0 : 180);
+              const cwall = this.wallGroup.create(cxp, ry, 'pixel');
+              cwall.setVisible(false); cwall.setDisplaySize(26, 46); cwall.refreshBody();
+            }));
+            this.add.text(bx + bw / 2, py + storeH / 2, '🛒 MARKET', {
+              fontSize: '15px', fontFamily: 'Arial Black, Arial', color: '#ffffff', stroke: '#000', strokeThickness: 3
             }).setOrigin(0.5).setDepth(5);
           }
           continue;
