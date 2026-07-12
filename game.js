@@ -17,6 +17,29 @@ const WORLD_H = ROWS * TILE;
 
 const PIXEL_FONT = '"Press Start 2P", monospace';
 
+/* ── Version + changelog (newest first). Bump when features ship. ── */
+const CHANGELOG = [
+  { v: '1.3', title: 'Streets Alive', items: [
+    'City landmarks: Suburbia park, Uptown roundabout, Docks pier',
+    'Ambient traffic — civilian cars cruising the roads',
+  ] },
+  { v: '1.2', title: 'Driving Polish', items: [
+    'Pedestrians dodge out of your way',
+    'Hold Shift to sprint',
+    'Speedometer added',
+    'Sleep now works (energy drains each shift)',
+  ] },
+  { v: '1.1', title: 'Heat & Maps', items: [
+    'Shake the mafia by breaking away from the crew',
+    '4 randomized city maps',
+  ] },
+  { v: '1.0', title: 'Launch', items: [
+    'Pizza & ambulance shifts, get high, dodge the loan shark',
+    'Desktop + mobile touch controls, day/night cycle',
+  ] },
+];
+const VERSION = CHANGELOG[0].v;
+
 const SHIFT_DURATION = 90;
 const NPC_COUNT      = 6;
 const TRAFFIC_COUNT  = 12;
@@ -326,7 +349,7 @@ class MenuScene extends Phaser.Scene {
       fontSize: '18px', fontFamily: 'Arial', color: '#cfe8d6', fontStyle: 'italic'
     }).setOrigin(0.5);
 
-    this.add.text(W / 2, H / 2 + 90, 'WASD / Arrows — drive    SPACE — brake    E — interact    ? — help', {
+    this.add.text(W / 2, H / 2 + 90, 'WASD / Arrows — drive   SHIFT — sprint   SPACE — brake   E — interact   ? — help', {
       fontSize: '15px', fontFamily: 'Arial', color: '#8aa596'
     }).setOrigin(0.5);
 
@@ -359,6 +382,52 @@ class MenuScene extends Phaser.Scene {
 
     // Pulse the button
     this.tweens.add({ targets: btn, scaleX: 1.03, scaleY: 1.03, duration: 800, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+
+    // Version tag (bottom-right) — click to open the changelog
+    this.buildChangelog();
+    const verTag = this.add.text(W - 10, H - 8, `v${VERSION}  ·  what's new`, {
+      fontSize: '12px', fontFamily: 'Arial', color: '#66aa88'
+    }).setOrigin(1, 1).setDepth(50).setInteractive({ useHandCursor: true });
+    verTag.on('pointerover', () => verTag.setColor('#aaffcc'));
+    verTag.on('pointerout',  () => verTag.setColor('#66aa88'));
+    verTag.on('pointerdown', () => this.toggleChangelog(true));
+  }
+
+  buildChangelog() {
+    this.clObjs = [];
+    const scrim = this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.75)
+      .setDepth(200).setVisible(false).setInteractive();
+    const panel = this.add.rectangle(W / 2, H / 2, 660, 600, 0x0a1512, 0.98)
+      .setStrokeStyle(2, 0x00ff88).setDepth(201).setVisible(false);
+    const title = this.add.text(W / 2, H / 2 - 262, "WHAT'S NEW", {
+      fontSize: '22px', fontFamily: PIXEL_FONT, color: '#00ff88'
+    }).setOrigin(0.5).setDepth(202).setVisible(false);
+    this.clObjs.push(scrim, panel, title);
+
+    let y = H / 2 - 220;
+    CHANGELOG.forEach(rel => {
+      const h = this.add.text(W / 2 - 300, y, `v${rel.v}  —  ${rel.title}`, {
+        fontSize: '16px', fontFamily: 'Arial Black, Arial', color: '#ffdd44'
+      }).setDepth(202).setVisible(false);
+      this.clObjs.push(h); y += 26;
+      rel.items.forEach(it => {
+        const b = this.add.text(W / 2 - 288, y, '•  ' + it, {
+          fontSize: '13px', fontFamily: 'Arial', color: '#cccccc'
+        }).setDepth(202).setVisible(false);
+        this.clObjs.push(b); y += 20;
+      });
+      y += 12;
+    });
+
+    const close = this.add.text(W / 2, H / 2 + 268, 'click anywhere to close', {
+      fontSize: '13px', fontFamily: 'Arial', color: '#66aa88'
+    }).setOrigin(0.5).setDepth(202).setVisible(false);
+    this.clObjs.push(close);
+    scrim.on('pointerdown', () => this.toggleChangelog(false));
+  }
+
+  toggleChangelog(show) {
+    this.clObjs.forEach(o => o.setVisible(show));
   }
 }
 
