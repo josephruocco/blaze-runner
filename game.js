@@ -71,8 +71,8 @@ const MAPS = [
     feature: { type: 'park', block: [2,2] } },
   { name: 'The Docks', ground: 0x2a4a55, road: 0x40484f,
     palette: [0x4a5a6a, 0x3a4a5a, 0x5a4a3a, 0x4a4a4a, 0x2a3a4a, 0x5a5a4a, 0x3a5a5a],
-    poi: { hospital: [0,3], pizzeria: [3,3], gas: [1,0], store: [2,1] },
-    feature: { type: 'waterfront', block: [1,3] } },
+    poi: { hospital: [0,0], pizzeria: [3,1], gas: [2,0], store: [1,2] },
+    waterEdge: 'south' },
   { name: 'Uptown', ground: 0x43385c, road: 0x504a5a,
     palette: [0x6a4a6a, 0x7a5a7a, 0x5a4a6a, 0x8a6a8a, 0x4a3a5a, 0x6a5a7a, 0x7a5a8a],
     poi: { hospital: [2,0], pizzeria: [1,1], gas: [3,2], store: [0,2] },
@@ -1166,6 +1166,7 @@ class GameScene extends Phaser.Scene {
   /* ── World ── */
   buildWorld() {
     const M = this.mapDef;
+    this.southBound = WORLD_H;   // overridden by a waterfront edge
     this.add.rectangle(WORLD_W / 2, WORLD_H / 2, WORLD_W, WORLD_H, M.ground);
     const g = this.add.graphics();
 
@@ -1239,26 +1240,12 @@ class GameScene extends Phaser.Scene {
             this.add.text(fcx, fcy - fr - 14, '⛲ PLAZA', {
               fontSize: '14px', fontFamily: 'Arial Black, Arial', color: '#dfeaf5', stroke: '#112233', strokeThickness: 3
             }).setOrigin(0.5).setDepth(5);
-          } else if (M.feature.type === 'waterfront') {
-            // Waterfront: impassable water below a drivable wooden boardwalk + a pier Ferris wheel
-            const boardH = 56;
-            g.fillStyle(0x2f6a8f); g.fillRect(px, py + boardH, pw, ph - boardH);   // water
-            g.fillStyle(0x4a86ad, 0.5);
-            for (let wy = py + boardH + 16; wy < py + ph - 6; wy += 22) g.fillRect(px + 12, wy, pw - 24, 3);
-            g.fillStyle(0x8a5a2a); g.fillRect(px, py, pw, boardH);                  // boardwalk
-            g.fillStyle(0x6a4520, 0.6); for (let wx = px; wx < px + pw; wx += 16) g.fillRect(wx, py, 2, boardH);
-            const wcx = px + pw * 0.72, wcy = py + boardH - 6, wr = 30;             // ferris wheel
-            g.lineStyle(4, 0xe8e8e8, 1); g.strokeCircle(wcx, wcy, wr);
-            for (let s = 0; s < 8; s++) { const a = s * Math.PI / 4; g.lineBetween(wcx, wcy, wcx + Math.cos(a) * wr, wcy + Math.sin(a) * wr); }
-            for (let s = 0; s < 8; s++) { const a = s * Math.PI / 4; g.fillStyle(s % 2 ? 0xff5566 : 0xffcc44); g.fillCircle(wcx + Math.cos(a) * wr, wcy + Math.sin(a) * wr, 5); }
-            const wall = this.wallGroup.create(px + pw / 2, py + boardH + (ph - boardH) / 2, 'pixel');
-            wall.setVisible(false); wall.setDisplaySize(pw, ph - boardH); wall.refreshBody();
-            this.add.text(px + pw * 0.3, py + 26, '🎡 PIER', {
-              fontSize: '14px', fontFamily: 'Arial Black, Arial', color: '#ffe4a0', stroke: '#3a2a10', strokeThickness: 3
-            }).setOrigin(0.5).setDepth(5);
           }
           continue;
         }
+
+        // Water-edge maps: the bottom row of blocks is open water (drawn after the grid)
+        if (M.waterEdge === 'south' && sr === sections - 1) continue;
 
         const isHosp  = sc === M.poi.hospital[0] && sr === M.poi.hospital[1];
         const isPizz  = sc === M.poi.pizzeria[0] && sr === M.poi.pizzeria[1];
@@ -1339,6 +1326,33 @@ class GameScene extends Phaser.Scene {
           g.fillRect(cx - 8, by + bh - mg - 20, 16, 20);
         }
       }
+    }
+
+    // ── Waterfront edge (e.g. The Docks): open water along the south of the map ──
+    if (M.waterEdge === 'south') {
+      const wt = (sections - 1) * RI * TILE + 2 * TILE;   // top of the water band
+      const boardH = 58, waterY = wt + boardH, waterH = WORLD_H - waterY;
+      this.southBound = wt;
+      g.fillStyle(0x8a5a2a); g.fillRect(0, wt, WORLD_W, boardH);                      // boardwalk
+      g.fillStyle(0x5a3818, 0.6); for (let x = 0; x < WORLD_W; x += 18) g.fillRect(x, wt, 2, boardH);
+      g.fillStyle(0x2f6a8f); g.fillRect(0, waterY, WORLD_W, waterH);                  // water
+      g.fillStyle(0x4a86ad, 0.5); for (let y = waterY + 18; y < WORLD_H - 6; y += 24) g.fillRect(24, y, WORLD_W - 48, 3);
+      [0.16, 0.44, 0.72, 0.9].forEach(fx => {                                          // boats
+        const bxp = WORLD_W * fx, byp = waterY + 68;
+        g.fillStyle(0x7a4a2a); g.fillRect(bxp - 34, byp - 9, 60, 18);
+        g.fillTriangle(bxp + 26, byp - 9, bxp + 46, byp, bxp + 26, byp + 9);
+        g.fillStyle(0xe8e8e8); g.fillRect(bxp - 12, byp - 22, 20, 15);
+        g.fillStyle(0x333333); g.fillRect(bxp - 1, byp - 42, 3, 22);
+      });
+      const wcx = WORLD_W * 0.5, wcy = wt + boardH - 8, wr = 42;                       // ferris wheel
+      g.lineStyle(5, 0xe8e8e8, 1); g.strokeCircle(wcx, wcy, wr);
+      for (let s = 0; s < 8; s++) { const a = s * Math.PI / 4; g.lineBetween(wcx, wcy, wcx + Math.cos(a) * wr, wcy + Math.sin(a) * wr); }
+      for (let s = 0; s < 8; s++) { const a = s * Math.PI / 4; g.fillStyle(s % 2 ? 0xff5566 : 0xffcc44); g.fillCircle(wcx + Math.cos(a) * wr, wcy + Math.sin(a) * wr, 6); }
+      const wall = this.wallGroup.create(WORLD_W / 2, waterY + waterH / 2, 'pixel');   // impassable water
+      wall.setVisible(false); wall.setDisplaySize(WORLD_W, waterH); wall.refreshBody();
+      this.add.text(WORLD_W * 0.22, wt + 28, '🎡 PIER', {
+        fontSize: '16px', fontFamily: 'Arial Black, Arial', color: '#ffe4a0', stroke: '#3a2a10', strokeThickness: 3
+      }).setOrigin(0.5).setDepth(5);
     }
   }
 
@@ -1422,7 +1436,7 @@ class GameScene extends Phaser.Scene {
   buildTraffic() {
     this.trafficList = [];
     this.colCenters = this.roadCols.map(c => c * TILE + TILE);
-    this.rowCenters = this.roadRows.map(r => r * TILE + TILE);
+    this.rowCenters = this.roadRows.map(r => r * TILE + TILE).filter(y => y < this.southBound - 40);
     for (let i = 0; i < TRAFFIC_COUNT; i++) {
       const horizontal = Math.random() < 0.5;
       const car = this.traffic.create(0, 0, 'car_traffic' + Phaser.Math.Between(0, this._trafficTexCount - 1));
@@ -1431,12 +1445,12 @@ class GameScene extends Phaser.Scene {
       car.setImmovable(true);
       car.axis  = horizontal ? 'h' : 'v';
       car.dir   = Math.random() < 0.5 ? 1 : -1;
-      car.speed = Phaser.Math.Between(85, 145);
+      car.speed = Phaser.Math.Between(70, 205);   // wide range = more havoc
       car._pri  = i;   // priority for breaking intersection ties (lower index wins)
       car.laneCenter = horizontal ? Phaser.Utils.Array.GetRandom(this.rowCenters)
                                   : Phaser.Utils.Array.GetRandom(this.colCenters);
       if (horizontal) car.x = Phaser.Math.Between(120, WORLD_W - 120);
-      else            car.y = Phaser.Math.Between(120, WORLD_H - 120);
+      else            car.y = Phaser.Math.Between(120, this.southBound - 120);
       this._setTrafficVel(car);
       car._prevX = car.x; car._prevY = car.y;
       this.trafficList.push(car);
@@ -1467,7 +1481,7 @@ class GameScene extends Phaser.Scene {
         else if (car.x > WORLD_W - 60 && car.dir > 0) { car.dir = -1; this._setTrafficVel(car); }
       } else {
         if (car.y < 60 && car.dir < 0) { car.dir = 1; this._setTrafficVel(car); }
-        else if (car.y > WORLD_H - 60 && car.dir > 0) { car.dir = -1; this._setTrafficVel(car); }
+        else if (car.y > this.southBound - 60 && car.dir > 0) { car.dir = -1; this._setTrafficVel(car); }
       }
       // Randomly turn onto a crossing road at intersections (going nowhere in particular)
       const canTurn = this.time.now - (car._turnCd || 0) > 700;
