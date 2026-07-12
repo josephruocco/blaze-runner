@@ -21,7 +21,7 @@ const PIXEL_FONT = '"Press Start 2P", monospace';
 const CHANGELOG = [
   { v: '1.3', title: 'Streets Alive', items: [
     'City landmarks: Suburbia park, Uptown roundabout, Docks pier',
-    'Ambient traffic — civilian cars cruising the roads',
+    'Two-way traffic — cars keep their lane and don\'t pile up',
   ] },
   { v: '1.2', title: 'Driving Polish', items: [
     'Pedestrians dodge out of your way',
@@ -43,6 +43,7 @@ const VERSION = CHANGELOG[0].v;
 const SHIFT_DURATION = 90;
 const NPC_COUNT      = 6;
 const TRAFFIC_COUNT  = 12;
+const TRAFFIC_LANE_OFFSET = 26;   // cars keep to their side of a 2-tile road (two-way)
 const MAX_HIGH       = 100;
 const HIGH_DECAY     = 0.3;
 const HIGH_PER_SMOKE = 22;
@@ -1365,52 +1366,87 @@ class GameScene extends Phaser.Scene {
     this.rowCenters = this.roadRows.map(r => r * TILE + TILE);
     for (let i = 0; i < TRAFFIC_COUNT; i++) {
       const horizontal = Math.random() < 0.5;
-      const x = horizontal ? Phaser.Math.Between(120, WORLD_W - 120) : Phaser.Utils.Array.GetRandom(this.colCenters);
-      const y = horizontal ? Phaser.Utils.Array.GetRandom(this.rowCenters) : Phaser.Math.Between(120, WORLD_H - 120);
-      const car = this.traffic.create(x, y, 'car_traffic' + Phaser.Math.Between(0, this._trafficTexCount - 1));
+      const car = this.traffic.create(0, 0, 'car_traffic' + Phaser.Math.Between(0, this._trafficTexCount - 1));
       car.setDepth(11);
       car.body.setSize(24, 44);
       car.setImmovable(true);
       car.axis  = horizontal ? 'h' : 'v';
       car.dir   = Math.random() < 0.5 ? 1 : -1;
       car.speed = Phaser.Math.Between(85, 145);
-      car._prevX = x; car._prevY = y;
+      car._pri  = i;   // priority for breaking intersection ties (lower index wins)
+      car.laneCenter = horizontal ? Phaser.Utils.Array.GetRandom(this.rowCenters)
+                                  : Phaser.Utils.Array.GetRandom(this.colCenters);
+      if (horizontal) car.x = Phaser.Math.Between(120, WORLD_W - 120);
+      else            car.y = Phaser.Math.Between(120, WORLD_H - 120);
       this._setTrafficVel(car);
+      car._prevX = car.x; car._prevY = car.y;
       this.trafficList.push(car);
     }
     this.physics.add.collider(this.player, this.traffic, this.hitTraffic, null, this);
   }
 
+  // Sets velocity + snaps the car to the correct side of its road (two-way lanes)
   _setTrafficVel(car) {
-    if (car.axis === 'h') { car.setVelocity(car.dir * car.speed, 0); car.setAngle(car.dir > 0 ? 90 : 270); }
-    else                  { car.setVelocity(0, car.dir * car.speed); car.setAngle(car.dir > 0 ? 180 : 0); }
+    if (car.axis === 'h') {
+      car.y = car.laneCenter + car.dir * TRAFFIC_LANE_OFFSET;
+      car.setVelocity(car.dir * car.speed, 0);
+      car.setAngle(car.dir > 0 ? 90 : 270);
+    } else {
+      car.x = car.laneCenter + car.dir * TRAFFIC_LANE_OFFSET;
+      car.setVelocity(0, car.dir * car.speed);
+      car.setAngle(car.dir > 0 ? 180 : 0);
+    }
   }
 
   updateTraffic() {
     this.trafficList.forEach(car => {
       if (!car.active) return;
-      // Bounce off the world edges
-      if (car.x < 60 && car.dir < 0 && car.axis === 'h') { car.dir = 1; this._setTrafficVel(car); }
-      else if (car.x > WORLD_W - 60 && car.dir > 0 && car.axis === 'h') { car.dir = -1; this._setTrafficVel(car); }
-      if (car.y < 60 && car.dir < 0 && car.axis === 'v') { car.dir = 1; this._setTrafficVel(car); }
-      else if (car.y > WORLD_H - 60 && car.dir > 0 && car.axis === 'v') { car.dir = -1; this._setTrafficVel(car); }
-      // Randomly turn when crossing a perpendicular road (going nowhere in particular)
+      // Bounce off the world edges (cross to the opposite-direction lane)
       if (car.axis === 'h') {
-        for (const pc of this.colCenters) {
-          if ((car._prevX < pc && car.x >= pc) || (car._prevX > pc && car.x <= pc)) {
-            if (Math.random() < 0.3) { car.x = pc; car.axis = 'v'; car.dir = Math.random() < 0.5 ? 1 : -1; this._setTrafficVel(car); }
-            break;
-          }
-        }
+        if (car.x < 60 && car.dir < 0) { car.dir = 1; this._setTrafficVel(car); }
+        else if (car.x > WORLD_W - 60 && car.dir > 0) { car.dir = -1; this._setTrafficVel(car); }
       } else {
-        for (const pc of this.rowCenters) {
-          if ((car._prevY < pc && car.y >= pc) || (car._prevY > pc && car.y <= pc)) {
-            if (Math.random() < 0.3) { car.y = pc; car.axis = 'h'; car.dir = Math.random() < 0.5 ? 1 : -1; this._setTrafficVel(car); }
-            break;
+        if (car.y < 60 && car.dir < 0) { car.dir = 1; this._setTrafficVel(car); }
+        else if (car.y > WORLD_H - 60 && car.dir > 0) { car.dir = -1; this._setTrafficVel(car); }
+      }
+      // Randomly turn onto a crossing road at intersections (going nowhere in particular)
+      const canTurn = this.time.now - (car._turnCd || 0) > 700;
+      const alongCenters = car.axis === 'h' ? this.colCenters : this.rowCenters;
+      const along = car.axis === 'h' ? car.x : car.y;
+      const prevAlong = car.axis === 'h' ? car._prevX : car._prevY;
+      for (const pc of alongCenters) {
+        if ((prevAlong < pc && along >= pc) || (prevAlong > pc && along <= pc)) {
+          if (canTurn && Math.random() < 0.3) {
+            car.laneCenter = pc;
+            car.axis = car.axis === 'h' ? 'v' : 'h';
+            car.dir = Math.random() < 0.5 ? 1 : -1;
+            car._turnCd = this.time.now;
+            this._setTrafficVel(car);
           }
+          break;
         }
       }
       car._prevX = car.x; car._prevY = car.y;
+    });
+
+    // No overlapping: follow the car ahead in your lane, yield to priority at crossings
+    this.trafficList.forEach(car => {
+      if (!car.active) return;
+      let blocked = false;
+      for (const o of this.trafficList) {
+        if (o === car || !o.active) continue;
+        if (o.axis === car.axis) {
+          const ahead = car.axis === 'h' ? (o.x - car.x) * car.dir : (o.y - car.y) * car.dir;
+          const lat   = car.axis === 'h' ? Math.abs(o.y - car.y) : Math.abs(o.x - car.x);
+          if (lat < 18 && ahead > 2 && ahead < 52) { blocked = true; break; }
+        } else if (o._pri < car._pri) {
+          let fx = car.x, fy = car.y;
+          if (car.axis === 'h') fx += car.dir * 32; else fy += car.dir * 32;
+          if (Math.abs(o.x - fx) < 26 && Math.abs(o.y - fy) < 26) { blocked = true; break; }
+        }
+      }
+      if (blocked) car.setVelocity(0, 0);
+      else if (car.body.velocity.x === 0 && car.body.velocity.y === 0) this._setTrafficVel(car);
     });
   }
 
