@@ -598,12 +598,12 @@ class TimeOffScene extends Phaser.Scene {
       // 4-card layout
       const xs = [W/2 - 345, W/2 - 115, W/2 + 115, W/2 + 345];
       this.makeCard(xs[0], H / 2, 'SLEEP', 'FREE\n+40 Energy\n-15% High',              0x1a3a6a, 'sleep',   this.energy < 100,         200);
-      this.makeCard(xs[1], H / 2, 'EAT',   `-$${EAT_COST}\n+Hunger & Energy`,0x6a3010, 'eat',   this.money >= EAT_COST,    200);
+      this.makeCard(xs[1], H / 2, 'EAT',   `-$${EAT_COST}\n+Hunger & Energy\n-High (munchies)`,0x6a3010, 'eat',   this.money >= EAT_COST,    200);
       this.makeCard(xs[2], H / 2, 'SMOKE', `-$${SMOKE_COST}\n+${HIGH_PER_SMOKE}% High`, 0x0f4a22, 'smoke', this.money >= SMOKE_COST, 200);
       this.makeCard(xs[3], H / 2, 'PAY\nDEBT', `Pay $${Math.min(Math.floor(this.money), Math.floor(this.debt))}\nof $${Math.floor(this.debt)} owed`, 0x6a1a1a, 'paydebt', this.money > 0, 200);
     } else {
       this.makeCard(W / 2 - 300, H / 2, 'SLEEP', 'FREE\n+40 Energy\n-15% High',              0x1a3a6a, 'sleep', this.energy < 100);
-      this.makeCard(W / 2,       H / 2, 'EAT',   `-$${EAT_COST}\n+Hunger & Energy`,0x6a3010, 'eat',  this.money >= EAT_COST);
+      this.makeCard(W / 2,       H / 2, 'EAT',   `-$${EAT_COST}\n+Hunger & Energy\n-High (munchies)`,0x6a3010, 'eat',  this.money >= EAT_COST);
       this.makeCard(W / 2 + 300, H / 2, 'SMOKE', `-$${SMOKE_COST}\n+${HIGH_PER_SMOKE}% High`, 0x0f4a22, 'smoke', this.money >= SMOKE_COST);
     }
 
@@ -1816,6 +1816,8 @@ class GameScene extends Phaser.Scene {
           this.money -= EAT_COST;
           this.hunger = Math.min(100, this.hunger + 40);
           this.energy = Math.min(100, this.energy + 10);
+          // food sobers you up — but far less when you're already blazed (munchies)
+          this.highLevel = Math.max(0, this.highLevel - 12 * (1 - this.highLevel / 100));
           this.showStatus('🍔 Munchies handled');
         }
         break;
