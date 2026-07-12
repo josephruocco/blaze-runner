@@ -21,7 +21,8 @@ const PIXEL_FONT = '"Press Start 2P", monospace';
 const CHANGELOG = [
   { v: '1.3', title: 'Streets Alive', items: [
     'Choose-your-city map picker before each run',
-    'City landmarks: Suburbia park, Uptown roundabout, Docks pier',
+    'City landmarks: Suburbia park, Uptown roundabout',
+    'Docks: beach, boardwalk & delivery piers you drive onto',
     'Downtown rush hour — heavy traffic + a highway on/off ramp',
     'Two-way traffic — cars keep their lane and don\'t pile up',
   ] },
@@ -1330,31 +1331,53 @@ class GameScene extends Phaser.Scene {
       }
     }
 
-    // ── Waterfront edge (e.g. The Docks): open water along the south of the map ──
+    // ── Waterfront edge (The Docks): beach + boardwalk, drivable delivery piers, open water ──
     if (M.waterEdge === 'south') {
-      const wt = (sections - 1) * RI * TILE + 2 * TILE;   // top of the water band
-      const boardH = 58, waterY = wt + boardH, waterH = WORLD_H - waterY;
+      const wt = (sections - 1) * RI * TILE + 2 * TILE;   // top of the strip
+      const boardH = 60, waterY = wt + boardH, waterH = WORLD_H - waterY;
       this.southBound = wt;
-      g.fillStyle(0x8a5a2a); g.fillRect(0, wt, WORLD_W, boardH);                      // boardwalk
-      g.fillStyle(0x5a3818, 0.6); for (let x = 0; x < WORLD_W; x += 18) g.fillRect(x, wt, 2, boardH);
-      g.fillStyle(0x2f6a8f); g.fillRect(0, waterY, WORLD_W, waterH);                  // water
-      g.fillStyle(0x4a86ad, 0.5); for (let y = waterY + 18; y < WORLD_H - 6; y += 24) g.fillRect(24, y, WORLD_W - 48, 3);
-      [0.16, 0.44, 0.72, 0.9].forEach(fx => {                                          // boats
-        const bxp = WORLD_W * fx, byp = waterY + 68;
-        g.fillStyle(0x7a4a2a); g.fillRect(bxp - 34, byp - 9, 60, 18);
-        g.fillTriangle(bxp + 26, byp - 9, bxp + 46, byp, bxp + 26, byp + 9);
-        g.fillStyle(0xe8e8e8); g.fillRect(bxp - 12, byp - 22, 20, 15);
-        g.fillStyle(0x333333); g.fillRect(bxp - 1, byp - 42, 3, 22);
+
+      // Horizontal strip: left half sandy beach, right half wooden boardwalk
+      const beachR = WORLD_W * 0.5;
+      g.fillStyle(0xd8c489); g.fillRect(0, wt, beachR, boardH);
+      g.fillStyle(0xcbb578, 0.6); for (let x = 10; x < beachR; x += 34) g.fillRect(x, wt + 14 + (x % 3) * 6, 5, 5);
+      g.fillStyle(0x8a5a2a); g.fillRect(beachR, wt, WORLD_W - beachR, boardH);
+      g.fillStyle(0x5a3818, 0.6); for (let x = beachR; x < WORLD_W; x += 16) g.fillRect(x, wt, 2, boardH);
+
+      // Water
+      g.fillStyle(0x2f6a8f); g.fillRect(0, waterY, WORLD_W, waterH);
+      g.fillStyle(0x4a86ad, 0.5); for (let y = waterY + 18; y < WORLD_H - 6; y += 26) g.fillRect(24, y, WORLD_W - 48, 3);
+
+      // Piers jutting into the water — drivable, each with a delivery/pickup spot at the end
+      const pierHW = 44, pierLen = 230, deepY = waterY + pierLen;
+      const pierXs = [0.22, 0.44, 0.66, 0.88].map(f => WORLD_W * f);
+      this.pierSpots = [];
+      pierXs.forEach(px => {
+        g.fillStyle(0x8a5a2a); g.fillRect(px - pierHW, waterY, pierHW * 2, pierLen);
+        g.fillStyle(0x5a3818, 0.6); for (let y = waterY; y < deepY; y += 14) g.fillRect(px - pierHW, y, pierHW * 2, 2);
+        g.fillStyle(0x8B4513); g.fillRect(px - 6, deepY - 26, 12, 22);   // end post
+        const spot = { x: px, y: deepY - 46 };
+        this.pierSpots.push(spot);
+        this.houseSpots.push(spot);     // piers are valid pickup / delivery targets
       });
-      const wcx = WORLD_W * 0.5, wcy = wt + boardH - 8, wr = 42;                       // ferris wheel
+
+      // Impassable water = everything except the pier columns
+      if (WORLD_H - deepY > 4) { const w = this.wallGroup.create(WORLD_W / 2, deepY + (WORLD_H - deepY) / 2, 'pixel'); w.setVisible(false); w.setDisplaySize(WORLD_W, WORLD_H - deepY); w.refreshBody(); }
+      const edges = [0]; pierXs.forEach(px => { edges.push(px - pierHW, px + pierHW); }); edges.push(WORLD_W);
+      for (let k = 0; k < edges.length; k += 2) {
+        const gw = edges[k + 1] - edges[k];
+        if (gw > 2) { const w = this.wallGroup.create((edges[k] + edges[k + 1]) / 2, waterY + pierLen / 2, 'pixel'); w.setVisible(false); w.setDisplaySize(gw, pierLen); w.refreshBody(); }
+      }
+
+      // Ferris wheel on the boardwalk + a couple boats out in the deep water
+      const wcx = WORLD_W * 0.79, wcy = wt + boardH - 8, wr = 38;
       g.lineStyle(5, 0xe8e8e8, 1); g.strokeCircle(wcx, wcy, wr);
       for (let s = 0; s < 8; s++) { const a = s * Math.PI / 4; g.lineBetween(wcx, wcy, wcx + Math.cos(a) * wr, wcy + Math.sin(a) * wr); }
       for (let s = 0; s < 8; s++) { const a = s * Math.PI / 4; g.fillStyle(s % 2 ? 0xff5566 : 0xffcc44); g.fillCircle(wcx + Math.cos(a) * wr, wcy + Math.sin(a) * wr, 6); }
-      const wall = this.wallGroup.create(WORLD_W / 2, waterY + waterH / 2, 'pixel');   // impassable water
-      wall.setVisible(false); wall.setDisplaySize(WORLD_W, waterH); wall.refreshBody();
-      this.add.text(WORLD_W * 0.22, wt + 28, '🎡 PIER', {
-        fontSize: '16px', fontFamily: 'Arial Black, Arial', color: '#ffe4a0', stroke: '#3a2a10', strokeThickness: 3
-      }).setOrigin(0.5).setDepth(5);
+      [0.33, 0.56].forEach(fx => { const bx = WORLD_W * fx, by = deepY + 46; g.fillStyle(0x7a4a2a); g.fillRect(bx - 28, by - 8, 52, 16); g.fillTriangle(bx + 22, by - 8, bx + 40, by, bx + 22, by + 8); g.fillStyle(0xe8e8e8); g.fillRect(bx - 10, by - 19, 17, 12); });
+
+      this.add.text(WORLD_W * 0.24, wt + 30, '🏖️ BEACH', { fontSize: '13px', fontFamily: 'Arial Black, Arial', color: '#5a4620', stroke: '#efe2bd', strokeThickness: 3 }).setOrigin(0.5).setDepth(5);
+      this.add.text(WORLD_W * 0.79, wt + 30, '🎡 PIER', { fontSize: '13px', fontFamily: 'Arial Black, Arial', color: '#ffe4a0', stroke: '#3a2a10', strokeThickness: 3 }).setOrigin(0.5).setDepth(5);
     }
 
     // ── Highway on/off ramp at the top edge (cars stream in and out here) ──
