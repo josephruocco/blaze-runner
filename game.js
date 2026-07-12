@@ -45,10 +45,12 @@ const MAPS = [
     feature: { type: 'park', block: [2,2] } },
   { name: 'The Docks', ground: 0x2a4a55, road: 0x40484f,
     palette: [0x4a5a6a, 0x3a4a5a, 0x5a4a3a, 0x4a4a4a, 0x2a3a4a, 0x5a5a4a, 0x3a5a5a],
-    poi: { hospital: [0,3], pizzeria: [3,3], gas: [1,0], store: [2,1] } },
+    poi: { hospital: [0,3], pizzeria: [3,3], gas: [1,0], store: [2,1] },
+    feature: { type: 'waterfront', block: [1,3] } },
   { name: 'Uptown', ground: 0x43385c, road: 0x504a5a,
     palette: [0x6a4a6a, 0x7a5a7a, 0x5a4a6a, 0x8a6a8a, 0x4a3a5a, 0x6a5a7a, 0x7a5a8a],
-    poi: { hospital: [2,0], pizzeria: [1,1], gas: [3,2], store: [0,2] } },
+    poi: { hospital: [2,0], pizzeria: [1,1], gas: [3,2], store: [0,2] },
+    feature: { type: 'roundabout', block: [2,2] } },
 ];
 
 /* ── Global event bus (no Phaser dependency at load time) ── */
@@ -1075,20 +1077,53 @@ class GameScene extends Phaser.Scene {
         if (bw <= 0 || bh <= 0) continue;
         const mg = 12;
 
-        // Drive-through park (a map feature) — grass, trees, no wall, extra pedestrians
-        if (M.feature && M.feature.type === 'park' && sc === M.feature.block[0] && sr === M.feature.block[1]) {
+        // Map features — special blocks drawn instead of a building
+        if (M.feature && sc === M.feature.block[0] && sr === M.feature.block[1]) {
           const px = bx + mg, py = by + mg, pw = bw - mg * 2, ph = bh - mg * 2;
-          g.fillStyle(0x3f7a34); g.fillRect(px, py, pw, ph);
-          g.fillStyle(0x8a7a5a, 0.45); g.fillRect(px, py + ph / 2 - 9, pw, 18);   // path
-          [[px+42,py+42],[px+pw-42,py+54],[px+pw-58,py+ph-48],[px+52,py+ph-42],[px+pw/2,py+40]].forEach(t => {
-            g.fillStyle(0x4a2f16); g.fillRect(t[0] - 3, t[1], 6, 15);
-            g.fillStyle(0x2e6b28); g.fillCircle(t[0], t[1], 17);
-            g.fillStyle(0x3f8a36); g.fillCircle(t[0] - 5, t[1] - 5, 9);
-          });
-          this.add.text(bx + bw / 2, by + bh / 2, '🌳 PARK', {
-            fontSize: '15px', fontFamily: 'Arial Black, Arial', color: '#c7efa0', stroke: '#112233', strokeThickness: 3
-          }).setOrigin(0.5).setDepth(5);
-          this.parkArea = { x: px, y: py, w: pw, h: ph };
+          if (M.feature.type === 'park') {
+            // Drive-through park: grass, trees, path, no wall, extra pedestrians
+            g.fillStyle(0x3f7a34); g.fillRect(px, py, pw, ph);
+            g.fillStyle(0x8a7a5a, 0.45); g.fillRect(px, py + ph / 2 - 9, pw, 18);
+            [[px+42,py+42],[px+pw-42,py+54],[px+pw-58,py+ph-48],[px+52,py+ph-42],[px+pw/2,py+40]].forEach(t => {
+              g.fillStyle(0x4a2f16); g.fillRect(t[0] - 3, t[1], 6, 15);
+              g.fillStyle(0x2e6b28); g.fillCircle(t[0], t[1], 17);
+              g.fillStyle(0x3f8a36); g.fillCircle(t[0] - 5, t[1] - 5, 9);
+            });
+            this.add.text(bx + bw / 2, by + bh / 2, '🌳 PARK', {
+              fontSize: '15px', fontFamily: 'Arial Black, Arial', color: '#c7efa0', stroke: '#112233', strokeThickness: 3
+            }).setOrigin(0.5).setDepth(5);
+            this.parkArea = { x: px, y: py, w: pw, h: ph };
+          } else if (M.feature.type === 'roundabout') {
+            // Fountain roundabout: paved drivable ring around a solid central island
+            g.fillStyle(M.road); g.fillRect(px, py, pw, ph);
+            const fcx = bx + bw / 2, fcy = by + bh / 2, fr = Math.min(pw, ph) * 0.26;
+            g.fillStyle(0x9a9a9a); g.fillCircle(fcx, fcy, fr);
+            g.fillStyle(0x3f7fb0); g.fillCircle(fcx, fcy, fr - 10);
+            g.fillStyle(0xcfd6dd); g.fillCircle(fcx, fcy, 11);
+            const iw = fr * 1.5;
+            const wall = this.wallGroup.create(fcx, fcy, 'pixel');
+            wall.setVisible(false); wall.setDisplaySize(iw, iw); wall.refreshBody();
+            this.add.text(fcx, fcy - fr - 14, '⛲ PLAZA', {
+              fontSize: '14px', fontFamily: 'Arial Black, Arial', color: '#dfeaf5', stroke: '#112233', strokeThickness: 3
+            }).setOrigin(0.5).setDepth(5);
+          } else if (M.feature.type === 'waterfront') {
+            // Waterfront: impassable water below a drivable wooden boardwalk + a pier Ferris wheel
+            const boardH = 56;
+            g.fillStyle(0x2f6a8f); g.fillRect(px, py + boardH, pw, ph - boardH);   // water
+            g.fillStyle(0x4a86ad, 0.5);
+            for (let wy = py + boardH + 16; wy < py + ph - 6; wy += 22) g.fillRect(px + 12, wy, pw - 24, 3);
+            g.fillStyle(0x8a5a2a); g.fillRect(px, py, pw, boardH);                  // boardwalk
+            g.fillStyle(0x6a4520, 0.6); for (let wx = px; wx < px + pw; wx += 16) g.fillRect(wx, py, 2, boardH);
+            const wcx = px + pw * 0.72, wcy = py + boardH - 6, wr = 30;             // ferris wheel
+            g.lineStyle(4, 0xe8e8e8, 1); g.strokeCircle(wcx, wcy, wr);
+            for (let s = 0; s < 8; s++) { const a = s * Math.PI / 4; g.lineBetween(wcx, wcy, wcx + Math.cos(a) * wr, wcy + Math.sin(a) * wr); }
+            for (let s = 0; s < 8; s++) { const a = s * Math.PI / 4; g.fillStyle(s % 2 ? 0xff5566 : 0xffcc44); g.fillCircle(wcx + Math.cos(a) * wr, wcy + Math.sin(a) * wr, 5); }
+            const wall = this.wallGroup.create(px + pw / 2, py + boardH + (ph - boardH) / 2, 'pixel');
+            wall.setVisible(false); wall.setDisplaySize(pw, ph - boardH); wall.refreshBody();
+            this.add.text(px + pw * 0.3, py + 26, '🎡 PIER', {
+              fontSize: '14px', fontFamily: 'Arial Black, Arial', color: '#ffe4a0', stroke: '#3a2a10', strokeThickness: 3
+            }).setOrigin(0.5).setDepth(5);
+          }
           continue;
         }
 
