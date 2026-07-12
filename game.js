@@ -19,6 +19,7 @@ const PIXEL_FONT = '"Press Start 2P", monospace';
 
 const SHIFT_DURATION = 90;
 const NPC_COUNT      = 6;
+const TRAFFIC_COUNT  = 12;
 const MAX_HIGH       = 100;
 const HIGH_DECAY     = 0.3;
 const HIGH_PER_SMOKE = 22;
@@ -966,6 +967,7 @@ class GameScene extends Phaser.Scene {
     this.npcs       = this.physics.add.group();
     this.bullets    = this.physics.add.group();
     this.hitmen     = this.physics.add.group();
+    this.traffic    = this.physics.add.group();
     this.hunted      = false;  // is the current shift a hunted (crew active) shift
     this.evadeTimer  = 0;      // seconds of separation built up toward shaking the crew
     this.nightsOwed  = 0;      // night shifts started while still in debt
@@ -978,6 +980,7 @@ class GameScene extends Phaser.Scene {
     this.buildWorld();
     this.buildPlayer();
     this.buildNPCs();
+    this.buildTraffic();
     this.buildMarkers();
 
     this.cursors = this.input.keyboard.createCursorKeys();
@@ -1047,6 +1050,7 @@ class GameScene extends Phaser.Scene {
     const borderRow = ROWS - 2;
     if (!roadCols.includes(borderCol)) roadCols.push(borderCol);
     if (!roadRows.includes(borderRow)) roadRows.push(borderRow);
+    this.roadCols = roadCols; this.roadRows = roadRows;   // lane indices for traffic
 
     for (const i of roadCols) {
       g.fillStyle(M.road);
@@ -1228,6 +1232,16 @@ class GameScene extends Phaser.Scene {
     hitG.generateTexture('car_hitman', 36, 56);
     hitG.destroy();
 
+    // Civilian traffic cars (a few colours)
+    const trafficColors = [0x3366cc, 0x8a8a8a, 0xccaa33, 0x55aa66, 0xbb5544];
+    this._trafficTexCount = trafficColors.length;
+    trafficColors.forEach((col, i) => {
+      const tg = this.make.graphics({ add: false });
+      this.drawCar(tg, col, false, false);
+      tg.generateTexture('car_traffic' + i, 36, 56);
+      tg.destroy();
+    });
+
     // NPC
     const npcG = this.make.graphics({ add: false });
     npcG.fillStyle(0xffcc88); npcG.fillCircle(8, 6, 6);
@@ -1273,6 +1287,72 @@ class GameScene extends Phaser.Scene {
     this.npcList = [];
     this._spawnNPCs(NPC_COUNT);
     if (this.parkArea) this._spawnParkNPCs(5);
+  }
+
+  /* ── Ambient traffic — civilian cars driving the roads, turning at intersections ── */
+  buildTraffic() {
+    this.trafficList = [];
+    this.colCenters = this.roadCols.map(c => c * TILE + TILE);
+    this.rowCenters = this.roadRows.map(r => r * TILE + TILE);
+    for (let i = 0; i < TRAFFIC_COUNT; i++) {
+      const horizontal = Math.random() < 0.5;
+      const x = horizontal ? Phaser.Math.Between(120, WORLD_W - 120) : Phaser.Utils.Array.GetRandom(this.colCenters);
+      const y = horizontal ? Phaser.Utils.Array.GetRandom(this.rowCenters) : Phaser.Math.Between(120, WORLD_H - 120);
+      const car = this.traffic.create(x, y, 'car_traffic' + Phaser.Math.Between(0, this._trafficTexCount - 1));
+      car.setDepth(11);
+      car.body.setSize(24, 44);
+      car.setImmovable(true);
+      car.axis  = horizontal ? 'h' : 'v';
+      car.dir   = Math.random() < 0.5 ? 1 : -1;
+      car.speed = Phaser.Math.Between(85, 145);
+      car._prevX = x; car._prevY = y;
+      this._setTrafficVel(car);
+      this.trafficList.push(car);
+    }
+    this.physics.add.collider(this.player, this.traffic, this.hitTraffic, null, this);
+  }
+
+  _setTrafficVel(car) {
+    if (car.axis === 'h') { car.setVelocity(car.dir * car.speed, 0); car.setAngle(car.dir > 0 ? 90 : 270); }
+    else                  { car.setVelocity(0, car.dir * car.speed); car.setAngle(car.dir > 0 ? 180 : 0); }
+  }
+
+  updateTraffic() {
+    this.trafficList.forEach(car => {
+      if (!car.active) return;
+      // Bounce off the world edges
+      if (car.x < 60 && car.dir < 0 && car.axis === 'h') { car.dir = 1; this._setTrafficVel(car); }
+      else if (car.x > WORLD_W - 60 && car.dir > 0 && car.axis === 'h') { car.dir = -1; this._setTrafficVel(car); }
+      if (car.y < 60 && car.dir < 0 && car.axis === 'v') { car.dir = 1; this._setTrafficVel(car); }
+      else if (car.y > WORLD_H - 60 && car.dir > 0 && car.axis === 'v') { car.dir = -1; this._setTrafficVel(car); }
+      // Randomly turn when crossing a perpendicular road (going nowhere in particular)
+      if (car.axis === 'h') {
+        for (const pc of this.colCenters) {
+          if ((car._prevX < pc && car.x >= pc) || (car._prevX > pc && car.x <= pc)) {
+            if (Math.random() < 0.3) { car.x = pc; car.axis = 'v'; car.dir = Math.random() < 0.5 ? 1 : -1; this._setTrafficVel(car); }
+            break;
+          }
+        }
+      } else {
+        for (const pc of this.rowCenters) {
+          if ((car._prevY < pc && car.y >= pc) || (car._prevY > pc && car.y <= pc)) {
+            if (Math.random() < 0.3) { car.y = pc; car.axis = 'h'; car.dir = Math.random() < 0.5 ? 1 : -1; this._setTrafficVel(car); }
+            break;
+          }
+        }
+      }
+      car._prevX = car.x; car._prevY = car.y;
+    });
+  }
+
+  hitTraffic(player, car) {
+    const spd = Math.abs(this.playerSpeed);
+    if (spd < 40) return;
+    if (this.time.now - (this._lastTrafficHit || 0) < 400) return;
+    this._lastTrafficHit = this.time.now;
+    this.playerSpeed *= 0.4;
+    this.cameras.main.shake(200, 0.012);
+    SFX.playImpact(Math.min(1, spd / 320));
   }
 
   _spawnParkNPCs(count) {
@@ -1884,6 +1964,8 @@ class GameScene extends Phaser.Scene {
       const [vx, vy] = dirs[npc.walkDir];
       npc.setVelocity(vx, vy);
     });
+
+    this.updateTraffic();
 
     // Hitmen chase & drive-by — only during a hunted shift
     if (this.hunted) {
