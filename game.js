@@ -597,12 +597,12 @@ class TimeOffScene extends Phaser.Scene {
     if (this.debt > 0) {
       // 4-card layout
       const xs = [W/2 - 345, W/2 - 115, W/2 + 115, W/2 + 345];
-      this.makeCard(xs[0], H / 2, 'SLEEP', 'FREE\n+40 Energy',              0x1a3a6a, 'sleep',   this.energy < 100,         200);
+      this.makeCard(xs[0], H / 2, 'SLEEP', 'FREE\n+40 Energy\n-15% High',              0x1a3a6a, 'sleep',   this.energy < 100,         200);
       this.makeCard(xs[1], H / 2, 'EAT',   `-$${EAT_COST}\n+Hunger & Energy`,0x6a3010, 'eat',   this.money >= EAT_COST,    200);
       this.makeCard(xs[2], H / 2, 'SMOKE', `-$${SMOKE_COST}\n+${HIGH_PER_SMOKE}% High`, 0x0f4a22, 'smoke', this.money >= SMOKE_COST, 200);
       this.makeCard(xs[3], H / 2, 'PAY\nDEBT', `Pay $${Math.min(Math.floor(this.money), Math.floor(this.debt))}\nof $${Math.floor(this.debt)} owed`, 0x6a1a1a, 'paydebt', this.money > 0, 200);
     } else {
-      this.makeCard(W / 2 - 300, H / 2, 'SLEEP', 'FREE\n+40 Energy',              0x1a3a6a, 'sleep', this.energy < 100);
+      this.makeCard(W / 2 - 300, H / 2, 'SLEEP', 'FREE\n+40 Energy\n-15% High',              0x1a3a6a, 'sleep', this.energy < 100);
       this.makeCard(W / 2,       H / 2, 'EAT',   `-$${EAT_COST}\n+Hunger & Energy`,0x6a3010, 'eat',  this.money >= EAT_COST);
       this.makeCard(W / 2 + 300, H / 2, 'SMOKE', `-$${SMOKE_COST}\n+${HIGH_PER_SMOKE}% High`, 0x0f4a22, 'smoke', this.money >= SMOKE_COST);
     }
@@ -1808,7 +1808,8 @@ class GameScene extends Phaser.Scene {
     switch (choice) {
       case 'sleep':
         this.energy = Math.min(100, this.energy + 40);
-        this.showStatus('😴 You feel rested');
+        this.highLevel = Math.max(0, this.highLevel - 15);   // you sober up a bit while you sleep
+        this.showStatus('😴 You slept it off a little');
         break;
       case 'eat':
         if (this.money >= EAT_COST) {
