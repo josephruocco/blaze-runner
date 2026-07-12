@@ -33,6 +33,23 @@ const BOLD_NIGHTS    = 3;      // nights owing before the crew hunts in daylight
 const SHAKE_DIST     = 700;    // px of separation needed to start shaking the crew
 const SHAKE_TIME     = 6;      // seconds of separation to fully lose them
 
+/* ── Authored city maps: POIs land in different blocks [sc,sr] + own color theme.
+   Picked at random each run so you don't always know where the hospital/pizza are. ── */
+const MAPS = [
+  { name: 'Downtown', ground: 0x2e5c28, road: 0x4a4a5a,
+    palette: [0x7a4030, 0x404060, 0x305050, 0x504030, 0x403050, 0x305030, 0x603040],
+    poi: { hospital: [0,0], pizzeria: [2,2], gas: [1,3], store: [3,1] } },
+  { name: 'Suburbia', ground: 0x3a6b2e, road: 0x565c56,
+    palette: [0x8a6a4a, 0x6a7a5a, 0x7a5a4a, 0x5a6a6a, 0x8a7a5a, 0x6a5a4a, 0x7a6a5a],
+    poi: { hospital: [3,0], pizzeria: [0,3], gas: [2,1], store: [1,2] } },
+  { name: 'The Docks', ground: 0x2a4a55, road: 0x40484f,
+    palette: [0x4a5a6a, 0x3a4a5a, 0x5a4a3a, 0x4a4a4a, 0x2a3a4a, 0x5a5a4a, 0x3a5a5a],
+    poi: { hospital: [0,3], pizzeria: [3,3], gas: [1,0], store: [2,1] } },
+  { name: 'Uptown', ground: 0x43385c, road: 0x504a5a,
+    palette: [0x6a4a6a, 0x7a5a7a, 0x5a4a6a, 0x8a6a8a, 0x4a3a5a, 0x6a5a7a, 0x7a5a8a],
+    poi: { hospital: [2,0], pizzeria: [1,1], gas: [3,2], store: [0,2] } },
+];
+
 /* ── Global event bus (no Phaser dependency at load time) ── */
 const Bus = {
   _l: {},
@@ -582,13 +599,7 @@ class UIScene extends Phaser.Scene {
         mmBg.fillRect(MX + c * mmScale, MY, TILE * 2 * mmScale, MM);
       }
 
-      // Static POI dots: hospital (sc=0,sr=0) and pizzeria (sc=2,sr=2)
-      const hospCX = (0 * RI + 2 + (RI - 2) / 2) * TILE;
-      const hospCY = (0 * RI + 2 + (RI - 2) / 2) * TILE;
-      const pizzCX = (2 * RI + 2 + (RI - 2) / 2) * TILE;
-      const pizzCY = (2 * RI + 2 + (RI - 2) / 2) * TILE;
-      mmBg.fillStyle(0xff4444); mmBg.fillCircle(MX + hospCX * mmScale, MY + hospCY * mmScale, 4);
-      mmBg.fillStyle(0xff8800); mmBg.fillCircle(MX + pizzCX * mmScale, MY + pizzCY * mmScale, 4);
+      // Hospital/pizzeria dots are drawn dynamically in update() — positions vary by map
 
       this.add.text(MX + MM / 2, MY - 12, 'MAP', {
         fontSize: '10px', color: '#aaaaaa', fontFamily: 'Arial'
@@ -841,6 +852,10 @@ class UIScene extends Phaser.Scene {
     const d = this.mmData;
     this.mmDots.clear();
 
+    // POI dots (hospital red, pizzeria orange) — positions vary by map
+    if (d.hosp) { this.mmDots.fillStyle(0xff4444); this.mmDots.fillCircle(this.mmX + d.hosp.x * this.mmScale, this.mmY + d.hosp.y * this.mmScale, 4); }
+    if (d.pizz) { this.mmDots.fillStyle(0xff8800); this.mmDots.fillCircle(this.mmX + d.pizz.x * this.mmScale, this.mmY + d.pizz.y * this.mmScale, 4); }
+
     // Job destination dot
     if (d.isOnShift && d.dest) {
       const color = d.jobPhase === 'pickup' ? 0x00ff88 : 0xff4444;
@@ -924,6 +939,7 @@ class GameScene extends Phaser.Scene {
     this.touch = { up: false, down: false, left: false, right: false, brake: false, interact: false, pause: false,
                    stickActive: false, stickX: 0, stickY: 0, stickMag: 0 };
 
+    this.mapDef = Phaser.Utils.Array.GetRandom(MAPS);
     this.buildTextures();
     this.buildWorld();
     this.buildPlayer();
@@ -977,12 +993,13 @@ class GameScene extends Phaser.Scene {
     SFX.startMusic();
 
     this.time.delayedCall(1800, () => this.startNewShift());
-    this.showStatus('Starting shift soon...');
+    this.showStatus(`📍 ${this.mapDef.name} — starting shift soon...`);
   }
 
   /* ── World ── */
   buildWorld() {
-    this.add.rectangle(WORLD_W / 2, WORLD_H / 2, WORLD_W, WORLD_H, 0x2e5c28);
+    const M = this.mapDef;
+    this.add.rectangle(WORLD_W / 2, WORLD_H / 2, WORLD_W, WORLD_H, M.ground);
     const g = this.add.graphics();
 
     // Roads — 2 tiles wide (interior grid + right/bottom border)
@@ -997,20 +1014,20 @@ class GameScene extends Phaser.Scene {
     if (!roadRows.includes(borderRow)) roadRows.push(borderRow);
 
     for (const i of roadCols) {
-      g.fillStyle(0x4a4a5a);
+      g.fillStyle(M.road);
       g.fillRect(i * TILE, 0, TILE * 2, WORLD_H);
       g.fillStyle(0xffffaa, 0.2);
       g.fillRect(i * TILE + TILE - 2, 0, 4, WORLD_H);
     }
     for (const j of roadRows) {
-      g.fillStyle(0x4a4a5a);
+      g.fillStyle(M.road);
       g.fillRect(0, j * TILE, WORLD_W, TILE * 2);
       g.fillStyle(0xffffaa, 0.2);
       g.fillRect(0, j * TILE + TILE - 2, WORLD_W, 4);
     }
 
     // Buildings — start 2 tiles in from each road
-    const bColors = [0x7a4030, 0x404060, 0x305050, 0x504030, 0x403050, 0x305030, 0x603040];
+    const bColors = M.palette;
     this.houseSpots = [];
     this.hospitalPos = null;
     this.pizzeriaPos = null;
@@ -1025,10 +1042,10 @@ class GameScene extends Phaser.Scene {
         if (bw <= 0 || bh <= 0) continue;
         const mg = 12;
 
-        const isHosp  = sc === 0 && sr === 0;
-        const isPizz  = sc === 2 && sr === 2;
-        const isGas   = sc === 1 && sr === 3;
-        const isStore = sc === 3 && sr === 1;
+        const isHosp  = sc === M.poi.hospital[0] && sr === M.poi.hospital[1];
+        const isPizz  = sc === M.poi.pizzeria[0] && sr === M.poi.pizzeria[1];
+        const isGas   = sc === M.poi.gas[0]      && sr === M.poi.gas[1];
+        const isStore = sc === M.poi.store[0]    && sr === M.poi.store[1];
 
         let color = bColors[(sc * sections + sr) % bColors.length];
         if (isHosp)  color = 0xdddddd;
@@ -1808,7 +1825,9 @@ class GameScene extends Phaser.Scene {
         py: this.player.y,
         isOnShift: this.isOnShift,
         jobPhase:  this.jobPhase,
-        dest: this.jobPhase === 'pickup' ? this.pickupDest : this.dropoffDest
+        dest: this.jobPhase === 'pickup' ? this.pickupDest : this.dropoffDest,
+        hosp: this.hospitalPos,
+        pizz: this.pizzeriaPos
       }
     });
   }
