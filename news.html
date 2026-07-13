@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Blaze Runner · Updates</title>
+  <meta name="description" content="Release notes for Blaze Runner. Every new city, hazard, and mechanic since launch.">
+  <meta name="theme-color" content="#0a0a0b">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='88'>🚑</text></svg>">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Blaze Runner · Updates">
+  <meta property="og:description" content="Release notes for Blaze Runner. Every new city, hazard, and mechanic since launch.">
+  <meta property="og:image" content="https://blaze-runner.josephruocco.net/cover.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    :root { --bg: #0a0a0b; --panel: #14141c; --line: #24242f; --gold: #ffdd44; --green: #00ff88; --text: #d6d6de; --dim: #8a8a97; }
+    body { background: var(--bg); color: var(--text); font-family: Arial, Helvetica, sans-serif;
+           line-height: 1.5; -webkit-font-smoothing: antialiased; }
+    .wrap { max-width: 760px; margin: 0 auto; padding: 28px 20px 80px; }
+
+    header { text-align: center; margin-bottom: 32px; }
+    header img { width: 100%; max-width: 560px; border-radius: 12px; border: 1px solid var(--line);
+                 box-shadow: 0 12px 40px rgba(0,0,0,.6); }
+    .tagline { font-style: italic; color: var(--dim); margin-top: 18px; font-size: 15px; }
+    .play { display: inline-block; margin-top: 22px; background: #1c7a44; color: #fff; text-decoration: none;
+            font-family: 'Press Start 2P', monospace; font-size: 13px; letter-spacing: 1px;
+            padding: 16px 34px; border-radius: 8px; border: 1px solid #2fae64;
+            box-shadow: 0 4px 0 #124e2c; transition: transform .08s, box-shadow .08s; }
+    .play:hover { transform: translateY(-1px); box-shadow: 0 5px 0 #124e2c; }
+    .play:active { transform: translateY(3px); box-shadow: 0 1px 0 #124e2c; }
+
+    h1.section { font-family: 'Press Start 2P', monospace; color: var(--green); font-size: 18px;
+                 text-align: center; margin: 8px 0 30px; letter-spacing: 2px; }
+
+    .rel { border-top: 1px solid var(--line); padding: 22px 0; }
+    .rel:first-of-type { border-top: none; }
+    .rel-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+    .badge { font-family: 'Press Start 2P', monospace; font-size: 11px; color: #101018; background: var(--gold);
+             padding: 6px 9px; border-radius: 5px; white-space: nowrap; }
+    .rel-title { font-family: 'Press Start 2P', monospace; font-size: 14px; color: var(--gold); }
+    .latest .badge { background: var(--green); }
+    .latest .rel-title { color: var(--green); }
+    .tag-new { font-family: 'Press Start 2P', monospace; font-size: 8px; color: var(--bg);
+               background: var(--green); padding: 4px 6px; border-radius: 4px; }
+    ul { list-style: none; }
+    li { position: relative; padding-left: 20px; margin: 7px 0; color: var(--text); }
+    li::before { content: '▸'; position: absolute; left: 0; color: var(--gold); }
+    .latest li::before { color: var(--green); }
+
+    footer { text-align: center; color: var(--dim); font-size: 13px; margin-top: 44px; }
+    footer a { color: var(--dim); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <a href="/"><img src="cover.png" alt="Blaze Runner"></a>
+      <p class="tagline">Stay as high as possible, for as long as possible.</p>
+      <a class="play" href="/">▶ PLAY</a>
+    </header>
+
+    <h1 class="section">UPDATES</h1>
+    <div id="releases"></div>
+
+    <footer>
+      A free browser game by <a href="https://josephruocco.net">Joseph Ruocco</a>.
+    </footer>
+  </div>
+
+  <script src="changelog.js"></script>
+  <script>
+    const esc = s => s.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+    document.getElementById('releases').innerHTML = CHANGELOG.map((rel, i) => `
+      <section class="rel${i === 0 ? ' latest' : ''}">
+        <div class="rel-head">
+          <span class="badge">v${esc(rel.v)}</span>
+          <span class="rel-title">${esc(rel.title)}</span>
+          ${i === 0 ? '<span class="tag-new">NEW</span>' : ''}
+        </div>
+        <ul>${rel.items.map(it => `<li>${esc(it)}</li>`).join('')}</ul>
+      </section>`).join('');
+    document.title = `Blaze Runner v${VERSION} · Updates`;
+  </script>
+</body>
+</html>
