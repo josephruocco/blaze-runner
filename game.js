@@ -40,7 +40,7 @@ const SHAKE_DIST     = 700;    // px of separation needed to start shaking the c
 const SHAKE_TIME     = 6;      // seconds of separation to fully lose them
 const KILL_SPEED     = 230;    // below this a pedestrian is only injured, not killed
 const RESCUE_TIME    = 22;     // seconds to get an injured pedestrian to the hospital
-const WIN_SCORE      = 420000000;   // reach 420,000,000 and you win the game
+const WIN_SCORE      = 420000;   // reach 420,000 and you win the game
 
 /* ── Difficulty: scales how punishing the shift mechanics are ── */
 const DIFFICULTIES = {
@@ -569,6 +569,14 @@ class GameOverScene extends Phaser.Scene {
       fontSize: '20px', fontFamily: 'Arial', color: '#cccccc', fontStyle: 'italic'
     }).setOrigin(0.5);
 
+    // Global leaderboard: submit this run, then show the top scores
+    if (Leaderboard.configured() && Math.floor(this.finalScore) > 0) {
+      this._lbLoading = this.add.text(W / 2, 500, 'Loading leaderboard...', {
+        fontSize: '15px', fontFamily: 'Arial', color: '#668877'
+      }).setOrigin(0.5);
+      this.time.delayedCall(250, () => this._submitAndShow());
+    }
+
     const btn = this.add.rectangle(W / 2, H - 100, 200, 54, 0x007733)
       .setInteractive({ useHandCursor: true });
     this.add.text(W / 2, H - 100, 'PLAY AGAIN', {
@@ -582,6 +590,41 @@ class GameOverScene extends Phaser.Scene {
       this.scene.stop('UI');
       this.scene.stop('TimeOff');
       this.scene.start('Menu');
+    });
+  }
+
+  _submitAndShow() {
+    let name = localStorage.getItem('stonerName');
+    if (!name) {
+      name = (window.prompt('Name for the global leaderboard (max 16):', '') || 'ANON').trim().slice(0, 16) || 'ANON';
+      localStorage.setItem('stonerName', name);
+    }
+    this._playerName = name;
+    Leaderboard.submit(name, this.finalScore);
+    // give dreamlo a beat to record the new score, then pull the board
+    this.time.delayedCall(900, () => Leaderboard.top(6).then(list => this._showLeaderboard(list)));
+  }
+
+  _showLeaderboard(list) {
+    if (!this.sys.isActive()) return;
+    if (this._lbLoading) { this._lbLoading.destroy(); this._lbLoading = null; }
+    const topY = 462;
+    this.add.text(W / 2, topY, '🌍 GLOBAL TOP 6', {
+      fontSize: '16px', fontFamily: PIXEL_FONT, color: '#ffdd44'
+    }).setOrigin(0.5);
+    if (!list.length) {
+      this.add.text(W / 2, topY + 32, 'No scores yet. You could be first!', {
+        fontSize: '14px', fontFamily: 'Arial', color: '#889988'
+      }).setOrigin(0.5);
+      return;
+    }
+    const colL = W / 2 - 165, colR = W / 2 + 165;
+    list.slice(0, 6).forEach((e, i) => {
+      const y = topY + 34 + i * 26;
+      const mine = e.name === this._playerName && Math.floor(e.score) === Math.floor(this.finalScore);
+      const col = mine ? '#00ff88' : '#dddddd';
+      this.add.text(colL, y, `${i + 1}. ${e.name}`, { fontSize: '15px', fontFamily: 'Arial', color: col }).setOrigin(0, 0.5);
+      this.add.text(colR, y, `${e.score}`,          { fontSize: '15px', fontFamily: 'Arial', color: col }).setOrigin(1, 0.5);
     });
   }
 }
@@ -2561,7 +2604,7 @@ class GameScene extends Phaser.Scene {
     this.highLevel = Math.max(0, this.highLevel - HIGH_DECAY * dt);
     this.score    += this.highLevel * dt * 0.8;
     this.peakHigh  = Math.max(this.peakHigh, this.highLevel);
-    if (this.score >= WIN_SCORE) this.triggerGameOver('You hit 420,000,000. Legend.', true);
+    if (this.score >= WIN_SCORE) this.triggerGameOver('You hit 420,000. Legend.', true);
 
     this.applyHighEffects(delta);
 
