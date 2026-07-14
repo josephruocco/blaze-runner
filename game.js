@@ -40,6 +40,7 @@ const SHAKE_DIST     = 700;    // px of separation needed to start shaking the c
 const SHAKE_TIME     = 6;      // seconds of separation to fully lose them
 const KILL_SPEED     = 230;    // below this a pedestrian is only injured, not killed
 const RESCUE_TIME    = 22;     // seconds to get an injured pedestrian to the hospital
+const WIN_SCORE      = 420000000;   // reach 420,000,000 and you win the game
 
 /* ── Difficulty: scales how punishing the shift mechanics are ── */
 const DIFFICULTIES = {
@@ -524,6 +525,7 @@ class GameOverScene extends Phaser.Scene {
     this.finalScore = d.score || 0;
     this.peakHigh   = d.peakHigh || 0;
     this.reason     = d.reason   || 'You crashed';
+    this.win        = !!d.win;
   }
 
   create() {
@@ -533,13 +535,14 @@ class GameOverScene extends Phaser.Scene {
     const bestScore = isNewBest ? Math.floor(this.finalScore) : prevBest;
 
     this.add.rectangle(W / 2, H / 2, W, H, 0x080808);
-    this.add.text(W / 2, 120, 'GAME OVER', {
+    this.add.text(W / 2, 120, this.win ? 'YOU WIN!' : 'GAME OVER', {
       fontSize: '44px', fontFamily: PIXEL_FONT,
-      color: '#ff3333', stroke: '#550000', strokeThickness: 8
+      color: this.win ? '#00ff88' : '#ff3333',
+      stroke: this.win ? '#004a22' : '#550000', strokeThickness: 8
     }).setOrigin(0.5);
 
     this.add.text(W / 2, 205, this.reason, {
-      fontSize: '22px', fontFamily: 'Arial', color: '#ffaa44'
+      fontSize: '22px', fontFamily: 'Arial', color: this.win ? '#ffee66' : '#ffaa44'
     }).setOrigin(0.5);
 
     this.add.text(W / 2, 275, `Score: ${Math.floor(this.finalScore)}`, {
@@ -2441,21 +2444,25 @@ class GameScene extends Phaser.Scene {
     return this.jobPhase === 'pickup' ? '🚑 → Pick up patient' : '🚑 → Drive to Hospital';
   }
 
-  triggerGameOver(reason) {
+  triggerGameOver(reason, win = false) {
     if (!this.gameActive) return;
     this.gameActive = false;
     SFX.stopEngine();
     SFX.stopMusic();
     this.player.setVelocity(0, 0);
-    this.cameras.main.shake(600, 0.04);
-    this.cameras.main.flash(1200, 200, 50, 0);
+    if (win) {
+      this.cameras.main.flash(1400, 80, 255, 140);   // green victory wash
+    } else {
+      this.cameras.main.shake(600, 0.04);
+      this.cameras.main.flash(1200, 200, 50, 0);
+    }
 
     this.time.delayedCall(1800, () => {
       Bus.removeAllListeners();
       this.scene.stop('UI');
       this.scene.stop('TimeOff');
       this.scene.start('GameOver', {
-        score: this.score, peakHigh: this.peakHigh, reason
+        score: this.score, peakHigh: this.peakHigh, reason, win
       });
     });
   }
@@ -2554,6 +2561,7 @@ class GameScene extends Phaser.Scene {
     this.highLevel = Math.max(0, this.highLevel - HIGH_DECAY * dt);
     this.score    += this.highLevel * dt * 0.8;
     this.peakHigh  = Math.max(this.peakHigh, this.highLevel);
+    if (this.score >= WIN_SCORE) this.triggerGameOver('You hit 420,000,000. Legend.', true);
 
     this.applyHighEffects(delta);
 
