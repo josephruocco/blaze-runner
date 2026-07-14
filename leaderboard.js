@@ -1,17 +1,21 @@
 // Global high-score leaderboard via dreamlo (no backend needed).
 //
-// SETUP: go to https://dreamlo.com, click "Get New Leaderboard", and paste the
-// two codes below. The private code can write scores; the public code reads them.
-// Note: in a browser game the private code is visible to players (that's dreamlo's
-// design). To wipe/reset, generate a fresh leaderboard and swap the codes.
+// dreamlo's free tier is HTTP-only; our site is HTTPS, so scores need SSL.
+// GO-LIVE: donate $5+ at https://dreamlo.com/donate, then use the "contact" link
+// to ask Carmine to enable SSL for public code 6a569cdd8f40bc13189cbc98. Once he
+// confirms, flip `ready` to true below and the leaderboard turns on.
+//
+// Note: dreamlo's model puts the private (write) code in client code — it's public
+// by design. To wipe/reset, generate a fresh board at dreamlo.com and swap codes.
 const DREAMLO = {
-  publicCode:  'PUT_PUBLIC_CODE_HERE',
-  privateCode: 'PUT_PRIVATE_CODE_HERE',
+  publicCode:  '6a569cdd8f40bc13189cbc98',
+  privateCode: 'I280s2ONZkOHPI_miZQ8LwIiJkSzmkN0G1YdiDWfWVJA',
   base: 'https://www.dreamlo.com/lb',
+  ready: false,   // flip to true once dreamlo has SSL enabled on this board
 };
 
 const Leaderboard = {
-  configured() { return DREAMLO.publicCode && !DREAMLO.publicCode.startsWith('PUT_'); },
+  configured() { return DREAMLO.ready && !!DREAMLO.publicCode; },
 
   // Fire-and-forget write (no-cors: the GET records the score, response is opaque)
   submit(name, score) {
