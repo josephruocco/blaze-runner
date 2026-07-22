@@ -367,8 +367,7 @@ class MenuScene extends Phaser.Scene {
 
     // Start button
     const btn = this.add.rectangle(W / 2, H - 100, 260, 60, 0x007733)
-      .setInteractive({ useHandCursor: true })
-      .setStrokeStyle(2, 0x00ff88);
+      .setInteractive({ useHandCursor: true });
     const btnTxt = this.add.text(W / 2, H - 100, 'START', {
       fontSize: '20px', fontFamily: PIXEL_FONT, color: '#ffffff'
     }).setOrigin(0.5);
@@ -392,6 +391,17 @@ class MenuScene extends Phaser.Scene {
     verTag.on('pointerover', () => verTag.setColor('#aaffcc'));
     verTag.on('pointerout',  () => verTag.setColor('#66aa88'));
     verTag.on('pointerdown', () => this.toggleChangelog(true));
+
+    // Social + copyright (bottom-left)
+    const follow = this.add.text(10, H - 24, 'follow for more  @joeruocco', {
+      fontSize: '12px', fontFamily: 'Arial', color: '#66aa88'
+    }).setOrigin(0, 1).setDepth(50).setInteractive({ useHandCursor: true });
+    follow.on('pointerover', () => follow.setColor('#aaffcc'));
+    follow.on('pointerout',  () => follow.setColor('#66aa88'));
+    follow.on('pointerdown', () => window.open('https://x.com/joeruocco', '_blank'));
+    this.add.text(10, H - 8, '© 2026 Blaze Runner', {
+      fontSize: '12px', fontFamily: 'Arial', color: '#556b60'
+    }).setOrigin(0, 1).setDepth(50);
   }
 
   buildChangelog() {
