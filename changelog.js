@@ -8,8 +8,8 @@ const CHANGELOG = [
     'Downtown closes a random street for construction every shift. Mind the barricades and find another way around',
     'A school bus now does its rounds through Suburbia',
   ] },
-  { v: '1.5', title: 'Uptown, High Roller', items: [
-    'Uptown is the high roller district. Jobs pay 60% more but the traffic is thick and the mafia hits harder',
+  { v: '1.5', title: 'Casino, High Roller', items: [
+    'The Casino is the high roller district. Jobs pay 60% more but the traffic is thick and the mafia hits harder',
     'A neon CASINO landmark with a valet loop and limos parked out front',
     'One way avenues. Follow the painted arrows or fight the flow',
   ] },
@@ -23,7 +23,7 @@ const CHANGELOG = [
     'Only fast hits are fatal. Clip someone in the ambulance and rush them to the hospital to save them',
     'Pick your city from a map picker before each run',
     'Tap friendly pause menu with an End Game option',
-    'City landmarks: Suburbia park + supermarket lot, Uptown roundabout',
+    'City landmarks: Suburbia park + supermarket lot, Casino roundabout',
     'Docks: beach, boardwalk & delivery piers you drive onto',
     'Downtown rush hour with heavy traffic and a highway ramp',
     'Two way traffic. Cars keep their lane and don\'t pile up',

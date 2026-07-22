@@ -64,7 +64,7 @@ const MAPS = [
     palette: [0x4a5a6a, 0x3a4a5a, 0x5a4a3a, 0x4a4a4a, 0x2a3a4a, 0x5a5a4a, 0x3a5a5a],
     poi: { hospital: [0,0], pizzeria: [3,1], gas: [2,0], store: [1,2] },
     waterEdge: 'south' },
-  { name: 'Uptown', ground: 0x43385c, road: 0x504a5a,
+  { name: 'Casino', ground: 0x43385c, road: 0x504a5a,
     palette: [0x6a4a6a, 0x7a5a7a, 0x5a4a6a, 0x8a6a8a, 0x4a3a5a, 0x6a5a7a, 0x7a5a8a],
     poi: { hospital: [2,0], pizzeria: [1,1], gas: [3,2], store: [0,2] },
     trafficCount: 22, payMult: 1.6, mafiaAggro: 1.3,          // big money, big risk
@@ -455,7 +455,7 @@ class MapSelectScene extends Phaser.Scene {
       fontSize: '30px', fontFamily: PIXEL_FONT, color: '#00ff88', stroke: '#003311', strokeThickness: 6
     }).setOrigin(0.5);
 
-    const blurbs = ['Dense city grid', 'Drive-through park', 'Waterfront & Ferris wheel', 'Fountain roundabout'];
+    const blurbs = ['Dense city grid', 'Drive-through park', 'Waterfront & Ferris wheel', 'Casino & one-way streets'];
     const cardW = 280, cardH = 150, gapX = 40, gapY = 34;
     const gx = [W / 2 - cardW / 2 - gapX / 2, W / 2 + cardW / 2 + gapX / 2];
     const gy = [200, 200 + cardH + gapY];
@@ -1657,7 +1657,7 @@ class GameScene extends Phaser.Scene {
     hitG.generateTexture('car_hitman', 36, 56);
     hitG.destroy();
 
-    // Stretch limo (for the Uptown valet) — long, black, gold trim
+    // Stretch limo (for the Casino valet) — long, black, gold trim
     const limG = this.make.graphics({ add: false });
     this.drawCar(limG, 0x0e0e14, false, false);
     limG.fillStyle(0xccaa33); limG.fillRect(4, 26, 28, 3);   // gold trim stripe
