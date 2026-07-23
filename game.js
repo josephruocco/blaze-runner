@@ -6,8 +6,13 @@ const H = 768;
 // Width flexes to the device aspect ratio so the game fills the screen instead of
 // pillarboxing (especially landscape phones). Height stays fixed for a consistent
 // vertical scale. Clamped so it never goes narrower than the original 4:3 or absurdly wide.
-const _aspect = (typeof window !== 'undefined' && window.innerHeight)
-  ? window.innerWidth / window.innerHeight : 4 / 3;
+// Always size for landscape play (mobile is forced to landscape via the rotate
+// overlay). Using the longer/shorter side means opening in portrait then rotating
+// still gives a full-screen game instead of a tiny letterboxed one. Clamped so it
+// never goes narrower than the original 4:3 or absurdly wide.
+const _iw = (typeof window !== 'undefined' && window.innerWidth)  ? window.innerWidth  : 1024;
+const _ih = (typeof window !== 'undefined' && window.innerHeight) ? window.innerHeight : 768;
+const _aspect = Math.max(_iw, _ih) / Math.min(_iw, _ih);
 const W = Math.max(1024, Math.min(1792, Math.round(H * _aspect)));
 const TILE = 64;
 const RI = 8;
@@ -2740,7 +2745,8 @@ function bootGame() {
     pixelArt: true,   // nearest-neighbour scaling → crisp 8-bit look
     scale: {
       mode:       Phaser.Scale.FIT,
-      autoCenter: Phaser.Scale.CENTER_BOTH,
+      autoCenter: Phaser.Scale.NO_CENTER,   // CSS flexbox centers the canvas; letting
+                                            // Phaser also center caused a sideways shift
     },
     physics: { default: 'arcade', arcade: { gravity: { y: 0 }, debug: false } },
     scene:  [MenuScene, MapSelectScene, GameScene, UIScene, TimeOffScene, GameOverScene]
