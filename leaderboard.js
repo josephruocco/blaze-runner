@@ -11,7 +11,7 @@ const DREAMLO = {
   publicCode:  '6a569cdd8f40bc13189cbc98',
   privateCode: 'I280s2ONZkOHPI_miZQ8LwIiJkSzmkN0G1YdiDWfWVJA',
   base: 'https://www.dreamlo.com/lb',
-  ready: false,   // flip to true once dreamlo has SSL enabled on this board
+  ready: true,   // dreamlo SSL enabled 2026-07-22 — leaderboard live
 };
 
 const Leaderboard = {
