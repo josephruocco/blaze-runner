@@ -59,22 +59,22 @@ const MAPS = [
   { name: 'Downtown', ground: 0x2e5c28, road: 0x4a4a5a,
     palette: [0x7a4030, 0x404060, 0x305050, 0x504030, 0x403050, 0x305030, 0x603040],
     poi: { hospital: [0,0], pizzeria: [2,2], gas: [1,3], store: [3,1] },
-    trafficCount: 26, highway: true, construction: true },   // a street's closed each shift
+    trafficCount: 14, highway: true, construction: true },   // a street's closed each shift
   { name: 'Suburbia', ground: 0x3a6b2e, road: 0x565c56,
     palette: [0x8a6a4a, 0x6a7a5a, 0x7a5a4a, 0x5a6a6a, 0x8a7a5a, 0x6a5a4a, 0x7a6a5a],
     poi: { hospital: [3,0], pizzeria: [0,3], gas: [2,1], store: [1,2] },
-    trafficCount: 18, schoolBus: true,                       // a school bus does its rounds
+    trafficCount: 10, schoolBus: true,                       // a school bus does its rounds
     features: [{ type: 'park', block: [2,2] }, { type: 'lot', block: [1,1] }] },
   { name: 'The Docks', ground: 0x2a4a55, road: 0x40484f,
     palette: [0x4a5a6a, 0x3a4a5a, 0x5a4a3a, 0x4a4a4a, 0x2a3a4a, 0x5a5a4a, 0x3a5a5a],
     poi: { hospital: [0,0], pizzeria: [3,1], gas: [2,0], store: [1,2] },
-    waterEdge: 'south' },
+    trafficCount: 9, waterEdge: 'south' },
   { name: 'Casino', ground: 0x43385c, road: 0x504a5a,
     palette: [0x6a4a6a, 0x7a5a7a, 0x5a4a6a, 0x8a6a8a, 0x4a3a5a, 0x6a5a7a, 0x7a5a8a],
     poi: { hospital: [2,0], pizzeria: [1,1], gas: [3,2], store: [0,2] },
-    trafficCount: 22, payMult: 1.6, mafiaAggro: 1.3,          // big money, big risk
+    trafficCount: 12, payMult: 1.6, mafiaAggro: 1.3,          // big money, big risk
     oneWay: [{ axis: 'v', col: 8, dir: 1 }, { axis: 'v', col: 24, dir: -1 }],  // one-way avenues
-    features: [{ type: 'roundabout', block: [2,2] }, { type: 'casino', block: [0,0], valetLimos: 4 }] },
+    features: [{ type: 'roundabout', block: [2,2] }, { type: 'casino', block: [0,0], valetLimos: 2 }] },
 ];
 
 /* ── Global event bus (no Phaser dependency at load time) ── */
@@ -1786,8 +1786,19 @@ class GameScene extends Phaser.Scene {
                                   : Phaser.Utils.Array.GetRandom(this.colCenters);
       const forced = this._forcedDir(car.axis, car.laneCenter);
       if (forced != null) car.dir = forced;   // one-way avenue
-      if (horizontal) car.x = Phaser.Math.Between(120, WORLD_W - 120);
-      else            car.y = Phaser.Math.Between(120, this.southBound - 120);
+      // Retry the along-road coordinate so cars never begin inside one another.
+      for (let attempt = 0; attempt < 16; attempt++) {
+        const along = horizontal
+          ? Phaser.Math.Between(120, WORLD_W - 120)
+          : Phaser.Math.Between(120, this.southBound - 120);
+        const separated = this.trafficList.every(other => {
+          if (other.axis !== car.axis || other.laneCenter !== car.laneCenter || other.dir !== car.dir) return true;
+          const otherAlong = horizontal ? other.x : other.y;
+          return Math.abs(otherAlong - along) >= 140;
+        });
+        if (horizontal) car.x = along; else car.y = along;
+        if (separated) break;
+      }
       this._setTrafficVel(car);
       car._prevX = car.x; car._prevY = car.y;
       this.trafficList.push(car);
@@ -1972,11 +1983,12 @@ class GameScene extends Phaser.Scene {
         if (o.axis === car.axis) {
           const ahead = car.axis === 'h' ? (o.x - car.x) * car.dir : (o.y - car.y) * car.dir;
           const lat   = car.axis === 'h' ? Math.abs(o.y - car.y) : Math.abs(o.x - car.x);
-          if (lat < 18 && ahead > 2 && ahead < 52) { blocked = true; break; }
+          // The sprite is 56px long. Leave a full car length plus reaction room.
+          if (lat < 22 && ahead > 0 && ahead < 82) { blocked = true; break; }
         } else if (o._pri < car._pri) {
           let fx = car.x, fy = car.y;
-          if (car.axis === 'h') fx += car.dir * 32; else fy += car.dir * 32;
-          if (Math.abs(o.x - fx) < 26 && Math.abs(o.y - fy) < 26) { blocked = true; break; }
+          if (car.axis === 'h') fx += car.dir * 48; else fy += car.dir * 48;
+          if (Math.abs(o.x - fx) < 38 && Math.abs(o.y - fy) < 38) { blocked = true; break; }
         }
       }
       if (blocked) car.setVelocity(0, 0);
