@@ -1,5 +1,5 @@
-// STONER SIMULATOR — polished build
-// Score by staying high. Work jobs, buy weed, dodge cops and bullets.
+// GHOST TAXI: GRAVEYARD SHIFT — first playable conversion
+// Carry living fares by day and lost souls by night in a haunted taxi.
 
 /* ── Constants ─────────────────────────────── */
 const H = 768;
@@ -341,25 +341,29 @@ function drawCarShape(g, bodyColor, isAmb, isCop) {
 class MenuScene extends Phaser.Scene {
   constructor() { super('Menu'); }
 
-  preload() { this.load.image('cover', 'cover.png'); }
+  preload() {}
 
   create() {
-    this.add.rectangle(W / 2, H / 2, W, H, 0x000000);
-
-    // Cover art occupies the top half
-    const cover = this.add.image(W / 2, 20, 'cover').setOrigin(0.5, 0);
-    cover.setScale((H / 2 - 20) / cover.height);
+    this.add.rectangle(W / 2, H / 2, W, H, 0x06131d);
+    this.add.text(W / 2, 122, 'GHOST TAXI', {
+      fontSize: '58px', fontFamily: PIXEL_FONT, color: '#55f5ec',
+      stroke: '#11243a', strokeThickness: 10
+    }).setOrigin(0.5);
+    this.add.text(W / 2, 195, 'GRAVEYARD SHIFT', {
+      fontSize: '25px', fontFamily: PIXEL_FONT, color: '#f6c744', letterSpacing: 5
+    }).setOrigin(0.5);
+    this.add.text(W / 2, 285, '🚕  👻', { fontSize: '68px' }).setOrigin(0.5);
 
     // Minimal instructions
-    this.add.text(W / 2, H / 2 + 50, 'Stay as high as possible, for as long as possible.', {
+    this.add.text(W / 2, H / 2 + 50, 'Living fares by day. Lost souls by night.', {
       fontSize: '18px', fontFamily: 'Arial', color: '#cfe8d6', fontStyle: 'italic'
     }).setOrigin(0.5);
 
-    this.add.text(W / 2, H / 2 + 90, 'WASD / Arrows: drive   SHIFT: sprint   SPACE: brake   E: interact   ?: help', {
+    this.add.text(W / 2, H / 2 + 90, 'WASD / Arrows: drive   SHIFT: soul power   SPACE: brake   E: interact   ?: help', {
       fontSize: '15px', fontFamily: 'Arial', color: '#8aa596'
     }).setOrigin(0.5);
 
-    const best = parseInt(localStorage.getItem('stonerHighScore') || '0');
+    const best = parseInt(localStorage.getItem('ghostTaxiHighScore') || '0');
     if (best > 0) {
       this.add.text(W / 2, H / 2 + 124, `🏆 Best Score: ${best}`, {
         fontSize: '15px', fontFamily: 'Arial Black, Arial', color: '#ffdd00'
@@ -404,7 +408,7 @@ class MenuScene extends Phaser.Scene {
     follow.on('pointerover', () => follow.setColor('#aaffcc'));
     follow.on('pointerout',  () => follow.setColor('#66aa88'));
     follow.on('pointerdown', () => window.open('https://x.com/joeruocco', '_blank'));
-    this.add.text(10, H - 8, '© 2026 Blaze Runner', {
+    this.add.text(10, H - 8, '© 2026 Ghost Taxi', {
       fontSize: '12px', fontFamily: 'Arial', color: '#556b60'
     }).setOrigin(0, 1).setDepth(50);
   }
@@ -544,9 +548,9 @@ class GameOverScene extends Phaser.Scene {
   }
 
   create() {
-    const prevBest = parseInt(localStorage.getItem('stonerHighScore') || '0');
+    const prevBest = parseInt(localStorage.getItem('ghostTaxiHighScore') || '0');
     const isNewBest = Math.floor(this.finalScore) > prevBest;
-    if (isNewBest) localStorage.setItem('stonerHighScore', Math.floor(this.finalScore));
+    if (isNewBest) localStorage.setItem('ghostTaxiHighScore', Math.floor(this.finalScore));
     const bestScore = isNewBest ? Math.floor(this.finalScore) : prevBest;
 
     this.add.rectangle(W / 2, H / 2, W, H, 0x080808);
@@ -574,12 +578,12 @@ class GameOverScene extends Phaser.Scene {
       }).setOrigin(0.5);
     }
 
-    this.add.text(W / 2, 375, `Peak High: ${Math.floor(this.peakHigh)}%`, {
-      fontSize: '24px', fontFamily: 'Arial', color: '#88ff44'
+    this.add.text(W / 2, 375, `Peak Haunt: ${Math.floor(this.peakHigh)}%`, {
+      fontSize: '24px', fontFamily: 'Arial', color: '#b46bff'
     }).setOrigin(0.5);
 
-    const grade = this.peakHigh > 90 ? 'BLAZED AF' : this.peakHigh > 70 ? 'Certified Stoner' :
-                  this.peakHigh > 50 ? 'Getting There' : this.peakHigh > 30 ? 'Casual Toker' : 'Basically Sober';
+    const grade = this.peakHigh > 90 ? 'FULLY POSSESSED' : this.peakHigh > 70 ? 'Certified Haunt' :
+                  this.peakHigh > 50 ? 'Getting There' : this.peakHigh > 30 ? 'Mildly Spooked' : 'Still Human';
     this.add.text(W / 2, 420, grade, {
       fontSize: '20px', fontFamily: 'Arial', color: '#cccccc', fontStyle: 'italic'
     }).setOrigin(0.5);
@@ -609,10 +613,10 @@ class GameOverScene extends Phaser.Scene {
   }
 
   _submitAndShow() {
-    let name = localStorage.getItem('stonerName');
+    let name = localStorage.getItem('ghostTaxiName');
     if (!name) {
       name = (window.prompt('Name for the global leaderboard (max 16):', '') || 'ANON').trim().slice(0, 16) || 'ANON';
-      localStorage.setItem('stonerName', name);
+      localStorage.setItem('ghostTaxiName', name);
     }
     this._playerName = name;
     Leaderboard.submit(name, this.finalScore);
@@ -654,8 +658,8 @@ class TimeOffScene extends Phaser.Scene {
     this.money   = d.money;
     this.highLvl = d.highLevel;
     this.energy  = d.energy;
-    this.hunger  = d.hunger;
-    this.debt    = d.debt || 0;
+    this.health  = d.health;
+    this.souls   = d.souls || 0;
   }
 
   create() {
@@ -665,25 +669,18 @@ class TimeOffScene extends Phaser.Scene {
       fontSize: '30px', fontFamily: 'Arial Black, Arial', color: '#00ff88'
     }).setOrigin(0.5);
 
-    let infoLine = `Cash: $${Math.floor(this.money)}   |   High: ${Math.floor(this.highLvl)}%   |   Energy: ${Math.floor(this.energy)}%`;
-    if (this.debt > 0) infoLine += `   |   Debt: $${Math.floor(this.debt)}`;
+    const infoLine = `Cash: $${Math.floor(this.money)}   |   Haunt: ${Math.floor(this.highLvl)}%   |   Taxi: ${Math.floor(this.health)}%   |   Souls: ${this.souls}`;
     this.add.text(W / 2, 115, infoLine,
       { fontSize: '16px', fontFamily: 'Arial', color: '#ffff88' }).setOrigin(0.5);
 
-    if (this.debt > 0) {
-      // 4-card layout
-      const xs = [W/2 - 345, W/2 - 115, W/2 + 115, W/2 + 345];
-      this.makeCard(xs[0], H / 2, 'SLEEP', 'FREE\n+40 Energy\n-15% High',              0x1a3a6a, 'sleep',   this.energy < 100,         200);
-      this.makeCard(xs[1], H / 2, 'EAT',   `-$${EAT_COST}\n+Hunger & Energy\n-High (munchies)`,0x6a3010, 'eat',   this.money >= EAT_COST,    200);
-      this.makeCard(xs[2], H / 2, 'SMOKE', `-$${SMOKE_COST}\n+${HIGH_PER_SMOKE}% High`, 0x0f4a22, 'smoke', this.money >= SMOKE_COST, 200);
-      this.makeCard(xs[3], H / 2, 'PAY\nDEBT', `Pay $${Math.min(Math.floor(this.money), Math.floor(this.debt))}\nof $${Math.floor(this.debt)} owed`, 0x6a1a1a, 'paydebt', this.money > 0, 200);
-    } else {
-      this.makeCard(W / 2 - 300, H / 2, 'SLEEP', 'FREE\n+40 Energy\n-15% High',              0x1a3a6a, 'sleep', this.energy < 100);
-      this.makeCard(W / 2,       H / 2, 'EAT',   `-$${EAT_COST}\n+Hunger & Energy\n-High (munchies)`,0x6a3010, 'eat',  this.money >= EAT_COST);
-      this.makeCard(W / 2 + 300, H / 2, 'SMOKE', `-$${SMOKE_COST}\n+${HIGH_PER_SMOKE}% High`, 0x0f4a22, 'smoke', this.money >= SMOKE_COST);
-    }
+    this.makeCard(W / 2 - 300, H / 2, 'REST', 'FREE\n+40 Energy\n-15% Haunt',
+      0x1a3a6a, 'rest', this.energy < 100);
+    this.makeCard(W / 2, H / 2, 'REPAIR', `-$${EAT_COST}\n+35% Taxi integrity`,
+      0x6a3010, 'repair', this.money >= EAT_COST && this.health < 100);
+    this.makeCard(W / 2 + 300, H / 2, 'COMMUNE', 'FREE\n+20% Haunt\nRecharge soul power',
+      0x4a206a, 'commune', true);
 
-    this.add.text(W / 2, H - 50, 'Tip: Buy weed at the corner store mid-shift with [E]', {
+    this.add.text(W / 2, H - 50, 'Living fares pay cash. Soul fares unlock powers.', {
       fontSize: '13px', fontFamily: 'Arial', color: '#555555'
     }).setOrigin(0.5);
   }
@@ -693,7 +690,7 @@ class TimeOffScene extends Phaser.Scene {
     const bg = this.add.rectangle(x, y, w, 210, color, 0.95)
       .setStrokeStyle(2, enabled ? 0x44ff88 : 0x333333).setAlpha(a);
 
-    const emoji = { sleep: '😴', eat: '🍔', smoke: '🌿', paydebt: '💸' }[choice];
+    const emoji = { rest: '😴', repair: '🔧', commune: '👻' }[choice];
     this.add.text(x, y - 60, emoji, { fontSize: '32px' }).setOrigin(0.5).setAlpha(a);
     this.add.text(x, y - 10, title, {
       fontSize: '20px', fontFamily: 'Arial Black, Arial', color: '#ffffff', align: 'center'
@@ -731,14 +728,14 @@ class UIScene extends Phaser.Scene {
     const mX = 34, mCY = H / 2, mH = 280;
     this.add.rectangle(mX, mCY, 28, mH + 8, 0x222222).setScrollFactor(0);
     this.add.rectangle(mX, mCY, 24, mH, 0x111111).setScrollFactor(0);
-    this.meterFill = this.add.rectangle(mX, mCY + mH / 2, 20, 2, 0x00ff44)
+    this.meterFill = this.add.rectangle(mX, mCY + mH / 2, 20, 2, 0xb46bff)
       .setOrigin(0.5, 1).setScrollFactor(0);
     this.mH = mH; this.mCY = mCY;
     this.add.text(mX, mCY - mH/2 - 14, '100', { fontSize: '10px', color: '#888', fontFamily: 'Arial' }).setOrigin(0.5).setScrollFactor(0);
     this.add.text(mX, mCY + mH/2 + 4,  '0',   { fontSize: '10px', color: '#888', fontFamily: 'Arial' }).setOrigin(0.5).setScrollFactor(0);
-    this.add.text(mX, mCY + mH/2 + 20, 'HIGH', { fontSize: '11px', color: '#00ff44', fontFamily: 'Arial Black, Arial' }).setOrigin(0.5).setScrollFactor(0);
+    this.add.text(mX, mCY + mH/2 + 20, 'HAUNT', { fontSize: '11px', color: '#b46bff', fontFamily: 'Arial Black, Arial' }).setOrigin(0.5).setScrollFactor(0);
     this.highPctText = this.add.text(mX, mCY - mH/2 - 30, '0%', {
-      fontSize: '13px', color: '#00ff44', fontFamily: 'Arial Black, Arial'
+      fontSize: '13px', color: '#b46bff', fontFamily: 'Arial Black, Arial'
     }).setOrigin(0.5).setScrollFactor(0);
 
     // ── HUD texts ──
@@ -773,7 +770,7 @@ class UIScene extends Phaser.Scene {
     }).setOrigin(0.5, 0).setScrollFactor(0).setDepth(60);
 
     // Ambulance patient health bar
-    this.patientLabel = this.add.text(W / 2, 60, 'PATIENT', {
+    this.patientLabel = this.add.text(W / 2, 60, 'SOUL', {
       fontSize: '11px', fontFamily: 'Arial Black, Arial', color: '#ff9999', stroke: '#000', strokeThickness: 2
     }).setOrigin(0.5, 0).setScrollFactor(0).setDepth(60).setVisible(false);
     this.patientBarBg = this.add.rectangle(W / 2, 84, 204, 12, 0x000000, 0.85)
@@ -861,7 +858,7 @@ class UIScene extends Phaser.Scene {
       }).setOrigin(0.5).setScrollFactor(0).setDepth(96);
 
       // Legend
-      this.add.text(MX, MY + MM + 4, '🔴 Hosp  🟠 Pizza  ⚪ You  🟢/🔴 Job', {
+      this.add.text(MX, MY + MM + 4, '🔵 Cemetery  🟡 Taxi  ⚪ You  🟢/🔴 Fare', {
         fontSize: '9px', color: '#888888', fontFamily: 'Arial'
       }).setScrollFactor(0).setDepth(96);
 
@@ -894,13 +891,14 @@ class UIScene extends Phaser.Scene {
 
     const helpLines = [
       ['🎮 CONTROLS',       'WASD / Arrows = drive    SPACE = brake    E = gas / store'],
-      ['💼 JOBS',           'Pick up & deliver pizza or ambulance patients for cash'],
-      ['🌿 GETTING HIGH',   'Smoke weed to raise your high meter. Score = high × time'],
-      ['🚗 SERPENTINE',     'The higher you are, the more your car sways & jerks'],
-      ['⚠️  LOAN SHARK',    'Kill a pedestrian → debt → the crew chases you'],
-      ['💸 PAY DEBT',       'Choose "Pay Debt" at the time off screen to call them off'],
-      ['⛽ GAS STATION',    'Drive close and press E to restore health for $40'],
-      ['🏪 CORNER STORE',   'Buy weed mid shift for $45 with E, no need to wait'],
+      ['☀️ DAY FARES',      'Carry living passengers for cash before sunset'],
+      ['🌙 SOUL FARES',     'Carry stranded souls after dark before they fade'],
+      ['👻 HAUNT',          'More haunt means more speed and score — but less control'],
+      ['👹 MONSTERS',       'Monster cars hunt soul passengers through the night'],
+      ['✨ SOUL POWER',     'Rescue the Racer Soul, then press SHIFT / POWER'],
+      ['⬡ HEXES',           'Getting caught binds dangerous power to the taxi'],
+      ['⛽ GARAGE',         'Drive close and press E to restore taxi integrity'],
+      ['⛪ SANCTUARY',      'Pay to cleanse HAUNT during a shift'],
     ];
     this.helpTexts = helpLines.map(([ label, desc ], i) => {
       const y = H / 2 - 120 + i * 36;
@@ -1033,6 +1031,7 @@ class UIScene extends Phaser.Scene {
     hold(W - 100,  bY,       60, '▲',  'up',       0x22aa55);   // gas
     hold(W - 236,  bY,       54, '■',  'brake',    0xcc3333);
     tap (W - 100,  bY - 142, 46, 'USE', 'interact', 0xddaa22, 18);
+    tap (W - 236,  bY - 142, 46, 'POWER', 'power', 0x8a44cc, 13);
     tap (58,       48,       32, '⏸',  'pause',    0x555566, 22);
 
     this.buildJoystick();
@@ -1077,27 +1076,27 @@ class UIScene extends Phaser.Scene {
     const fillH = (this.highLevel / 100) * this.mH;
     this.meterFill.height = fillH;
     this.meterFill.y = this.mCY + this.mH / 2;
-    let mColor = 0x00ff44;
-    if (this.highLevel > 75) mColor = 0xff2222;
-    else if (this.highLevel > 50) mColor = 0xff8800;
-    else if (this.highLevel > 25) mColor = 0xffee00;
+    let mColor = 0x55f5ec;
+    if (this.highLevel > 75) mColor = 0xff44cc;
+    else if (this.highLevel > 50) mColor = 0xb46bff;
+    else if (this.highLevel > 25) mColor = 0x6688ff;
     this.meterFill.setFillStyle(mColor);
 
     this.highPctText.setText(`${Math.floor(this.highLevel)}%`);
     this.moneyText.setText(`$${Math.floor(this.money)}`);
     this.scoreText.setText(`Score: ${Math.floor(this.score)}`);
     this.jobText.setText(d.jobStatus || '');
-    this.debtText.setText(this.debt > 0 ? `🦈 LOAN SHARK: $${Math.floor(this.debt)} owed` : '');
-    this.rescueText.setText(d.rescue ? `🚑 SAVE THEM! ${d.rescue}s to the hospital!` : '');
+    this.debtText.setText(d.hex ? `⬡ HEX: ${d.hex}` : '');
+    this.rescueText.setText('');
 
     // Pizza delivery countdown
     if (d.pizzaTimer >= 0) {
       const t = d.pizzaTimer, mm = Math.floor(t / 60), ss = t % 60;
-      this.pizzaTimerText.setText(`🍕 ${mm}:${String(ss).padStart(2, '0')} · deliver or it's free`);
+      this.pizzaTimerText.setText(`🚕 ${mm}:${String(ss).padStart(2, '0')} · fare deadline`);
       this.pizzaTimerText.setColor(t <= 15 ? '#ff5555' : '#ffcc44');
     } else this.pizzaTimerText.setText('');
 
-    // Ambulance patient health bar
+    // Carried soul fade meter
     const showPatient = d.patient >= 0;
     this.patientLabel.setVisible(showPatient);
     this.patientBarBg.setVisible(showPatient);
@@ -1140,12 +1139,13 @@ class UIScene extends Phaser.Scene {
     }
 
     const fx = [];
-    if (this.highLevel > 20) fx.push('Buzzed');
+    if (this.highLevel > 20) fx.push('Haunted');
     if (this.highLevel > 45) fx.push('Distorted');
     if (this.highLevel > 65) fx.push('Paranoid');
     if (this.highLevel > 82) fx.push('Controls flip');
-    if (this.highLevel > 92) fx.push('BLAZED AF');
-    if (d.hunted)            fx.push('Under fire');
+    if (this.highLevel > 92) fx.push('FULLY POSSESSED');
+    if (d.hunted)            fx.push('Hunted');
+    if (d.power)             fx.push(`✨ ${d.power}`);
     this.fxText.setText(fx.join('\n'));
 
     this.updateVignette();
@@ -1276,7 +1276,12 @@ class GameScene extends Phaser.Scene {
     this.manslaughterCount= 0;
     this.shiftCount       = 0;
     this.pendingDebt      = 0;
-    this.timeOfDay        = 0.35; // start at ~8 AM (0=midnight, 0.5=noon, 1=midnight)
+    this.timeOfDay        = 0.70; // one final day fare before the first night shift
+    this.boundSouls       = 0;
+    this.soulPowerUnlocked= false;
+    this.soulPowerReady   = false;
+    this.soulPowerUntil   = 0;
+    this.phantomSteering  = false;
     this.gasPos           = null;
     this.storePos         = null;
     this.pickupDest       = null;
@@ -1292,7 +1297,7 @@ class GameScene extends Phaser.Scene {
     this.evadeTimer  = 0;      // seconds of separation built up toward shaking the crew
     this.nightsOwed  = 0;      // night shifts started while still in debt
     this.invulnUntil = 0;      // i-frame timestamp after a ram
-    this.touch = { up: false, down: false, left: false, right: false, brake: false, interact: false, pause: false,
+    this.touch = { up: false, down: false, left: false, right: false, brake: false, interact: false, power: false, pause: false,
                    stickActive: false, stickX: 0, stickY: 0, stickMag: 0 };
 
     this.mapDef = (this._chosenMap != null) ? MAPS[this._chosenMap] : Phaser.Utils.Array.GetRandom(MAPS);
@@ -1318,7 +1323,7 @@ class GameScene extends Phaser.Scene {
     this.eKey     = this.input.keyboard.addKey('E');
     this.pKey     = this.input.keyboard.addKey('P');
     this.brakeKey = this.input.keyboard.addKey('SPACE');
-    this.sprintKey = this.input.keyboard.addKey('SHIFT');
+    this.powerKey = this.input.keyboard.addKey('SHIFT');
     this.paused   = false;
 
     this.physics.world.setBounds(0, 0, WORLD_W, WORLD_H);
@@ -1548,7 +1553,7 @@ class GameScene extends Phaser.Scene {
           // pulsing entrance circle
           const hc = this.add.circle(bottomX, bottomY, 14, 0xff4444, 0.85).setDepth(6);
           this.tweens.add({ targets: hc, scaleX: 1.5, scaleY: 1.5, alpha: 0.3, duration: 900, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
-          this.add.text(cx, cy + 50, '🏥 HOSPITAL', {
+          this.add.text(cx, cy + 50, '🪦 CEMETERY', {
             fontSize: '16px', fontFamily: 'Arial Black, Arial',
             color: '#ff4444', stroke: '#fff', strokeThickness: 3
           }).setOrigin(0.5).setDepth(5);
@@ -1557,7 +1562,7 @@ class GameScene extends Phaser.Scene {
           // pulsing entrance circle
           const pc = this.add.circle(bottomX, bottomY, 14, 0xff6600, 0.85).setDepth(6);
           this.tweens.add({ targets: pc, scaleX: 1.5, scaleY: 1.5, alpha: 0.3, duration: 900, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
-          this.add.text(cx, cy, '🍕\nPIZZA HQ', {
+          this.add.text(cx, cy, '🚕\nTAXI DEPOT', {
             fontSize: '20px', fontFamily: 'Arial Black, Arial',
             color: '#ffffff', align: 'center', stroke: '#000', strokeThickness: 3
           }).setOrigin(0.5).setDepth(5);
@@ -1569,7 +1574,7 @@ class GameScene extends Phaser.Scene {
           }).setOrigin(0.5).setDepth(5);
         } else if (isStore) {
           this.storePos = { x: accessX, y: accessY };
-          this.add.text(cx, cy, '🏪\nSTORE', {
+          this.add.text(cx, cy, '⛪\nSANCTUARY', {
             fontSize: '20px', fontFamily: 'Arial Black, Arial',
             color: '#aaffaa', align: 'center', stroke: '#000', strokeThickness: 3
           }).setOrigin(0.5).setDepth(5);
@@ -1646,6 +1651,17 @@ class GameScene extends Phaser.Scene {
   /* ── Textures ── */
   buildTextures() {
     // Cars
+    const taxiG = this.make.graphics({ add: false });
+    this.drawCar(taxiG, 0xf4c020, false, false);
+    taxiG.fillStyle(0x111111);
+    for (let y = 20; y < 34; y += 7) {
+      taxiG.fillRect(5, y, 7, 7); taxiG.fillRect(19, y, 7, 7);
+    }
+    taxiG.fillStyle(0x55f5ec);
+    taxiG.fillRect(7, 2, 7, 4); taxiG.fillRect(22, 2, 7, 4);
+    taxiG.generateTexture('car_taxi', 36, 56);
+    taxiG.destroy();
+
     const pizzaG = this.make.graphics({ add: false });
     this.drawCar(pizzaG, 0xdd3300, false, false);
     pizzaG.generateTexture('car_pizza', 36, 56);
@@ -1657,8 +1673,10 @@ class GameScene extends Phaser.Scene {
     ambG.destroy();
 
     const hitG = this.make.graphics({ add: false });
-    this.drawCar(hitG, 0x111111, false, false);
-    hitG.fillStyle(0xff0000); hitG.fillRect(7, 2, 7, 4); hitG.fillRect(22, 2, 7, 4); // red headlights
+    this.drawCar(hitG, 0x190d24, false, false);
+    hitG.fillStyle(0xff33cc); hitG.fillRect(7, 2, 7, 4); hitG.fillRect(22, 2, 7, 4);
+    hitG.fillStyle(0xffffff);
+    for (let x = 10; x <= 24; x += 7) hitG.fillTriangle(x, 17, x + 5, 17, x + 2, 22);
     hitG.generateTexture('car_hitman', 36, 56);
     hitG.destroy();
 
@@ -1724,7 +1742,7 @@ class GameScene extends Phaser.Scene {
     const sx = RI * TILE + TILE;  // center of 2-tile-wide road
     const sy = RI * TILE + TILE;
 
-    this.player = this.physics.add.sprite(sx, sy, 'car_pizza');
+    this.player = this.physics.add.sprite(sx, sy, 'car_taxi');
     this.player.setDepth(15);
     this.player.body.setSize(24, 44);
     this.player.body.setOffset(6, 6);
@@ -2020,29 +2038,30 @@ class GameScene extends Phaser.Scene {
   startNewShift() {
     if (!this.gameActive) return;
 
-    this.jobType   = Math.random() < 0.5 ? 'pizza' : 'ambulance';
+    const night = this.isNight();
+    this.jobType   = night ? 'soul' : 'living';
     this.jobPhase  = 'pickup';
     this.isOnShift = true;
     this.patientHealth = 0;
-    // Pizza is a beat-the-clock run; ambulance pressure comes from the patient's health
-    this.shiftTimer = this.jobType === 'pizza' ? this.diff.pizzaTime : SHIFT_DURATION;
+    this.shiftTimer = night ? SHIFT_DURATION : this.diff.pizzaTime;
+    this.soulPowerReady = this.soulPowerUnlocked;
 
-    this.player.setTexture(this.jobType === 'pizza' ? 'car_pizza' : 'car_amb');
+    this.player.setTexture('car_taxi');
 
     if (this.mapDef.construction) this.closeStreet();   // a fresh street closure each shift
 
     const house = Phaser.Utils.Array.GetRandom(this.houseSpots);
 
-    if (this.jobType === 'pizza') {
+    if (!night) {
       this.pickupDest  = { ...this.pizzeriaPos };
       this.dropoffDest = { x: house.x, y: house.y };
-      this.showStatus('🍕 Pizza shift! Head to PIZZA HQ');
+      this.showStatus('☀️ DAY SHIFT · Pick up a living fare at the TAXI DEPOT');
     } else {
       this.pickupDest  = { x: house.x, y: house.y };
       this.dropoffDest = { ...this.hospitalPos };
-      this.showStatus('🚑 Ambulance shift! Pick up the patient!');
+      this.showStatus('🌙 NIGHT SHIFT · Find the stranded soul');
       // pulsing circle on the pickup house
-      this._houseCircle = this.add.circle(house.x, house.y, 14, 0x44ddff, 0.85).setDepth(6);
+      this._houseCircle = this.add.circle(house.x, house.y, 14, 0x55f5ec, 0.85).setDepth(6);
       this.tweens.add({ targets: this._houseCircle, scaleX: 1.5, scaleY: 1.5, alpha: 0.3,
         duration: 900, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
     }
@@ -2051,23 +2070,15 @@ class GameScene extends Phaser.Scene {
     this.pickupMarker.setVisible(true);
     this.dropoffMarker.setVisible(false);
 
-    // Loan shark's crew hunts at night while you owe — and day+night once ignored too long
+    // Monster cars only wake after dark.
     this.hunted = false;
     this.hitmen.clear(true, true);
     this.bullets.clear(true, true);
-    if (this.hasLoanShark && this.debt > 0) {
-      const night = this.isNight();
-      if (night) this.nightsOwed++;
-      const boldDay = !night && this.nightsOwed >= BOLD_NIGHTS;
-      if (night || boldDay) {
-        this.hunted = true;
-        const cap = boldDay ? 3 : 2;
-        this.time.delayedCall(2500, () => this.showStatus(boldDay
-          ? '🦈 You ignored the debt too long. The crew hunts you in broad daylight now!'
-          : '🌙 Night shift. The crew is hunting you. Lose them or pay your debt!'));
-        for (let i = 0; i < cap; i++) {
-          this.time.delayedCall(6000 + i * 8000, () => { if (this.isOnShift && this.hunted) this.spawnHitman(); });
-        }
+    if (night) {
+      this.hunted = true;
+      this.time.delayedCall(2500, () => this.showStatus('👹 Monsters are hunting your passenger. Lose them!'));
+      for (let i = 0; i < 2; i++) {
+        this.time.delayedCall(4500 + i * 7000, () => { if (this.isOnShift && this.hunted) this.spawnHitman(); });
       }
     }
   }
@@ -2098,6 +2109,12 @@ class GameScene extends Phaser.Scene {
       this._patientBonus = 0;
       const pay = Math.round((JOB_PAY + bonus) * (this.mapDef.payMult || 1));   // rich districts tip big
       this.money += pay;
+      if (this.jobType === 'soul') {
+        this.boundSouls++;
+        this.soulPowerUnlocked = true;
+        this.soulPowerReady = true;
+        this.highLevel = Math.min(MAX_HIGH, this.highLevel + 24);
+      }
       SFX.playDropoff();
       if (this.debt > 0) {
         const pmt = Math.min(80, this.debt);
@@ -2109,7 +2126,9 @@ class GameScene extends Phaser.Scene {
       const aliveCount = this.npcs.getChildren().filter(n => n.alive).length;
       const toSpawn = Math.min(3, 40 - aliveCount);
       if (toSpawn > 0) this._spawnNPCs(toSpawn);
-      this.showStatus(bonus > 0 ? `❤️ Patient delivered! +$${pay}` : `✅ Job complete! +$${pay}`);
+      this.showStatus(this.jobType === 'soul'
+        ? '👻 Soul delivered and bound to the taxi! Racer power unlocked.'
+        : `🚕 Living fare complete! +$${pay}`);
     } else {
       this.showStatus('⏰ Shift ended, no pay');
     }
@@ -2125,8 +2144,8 @@ class GameScene extends Phaser.Scene {
     this.time.delayedCall(2000, () => {
       this.scene.launch('TimeOff', {
         money: this.money, highLevel: this.highLevel,
-        energy: this.energy, hunger: this.hunger,
-        debt: this.debt
+        energy: this.energy, health: this.health,
+        souls: this.boundSouls
       });
     });
   }
@@ -2135,48 +2154,25 @@ class GameScene extends Phaser.Scene {
     this.isInTimeOff = false;
 
     switch (choice) {
-      case 'sleep':
+      case 'rest':
         this.energy = Math.min(100, this.energy + 40);
-        this.highLevel = Math.max(0, this.highLevel - 15);   // you sober up a bit while you sleep
-        this.showStatus('😴 You slept it off a little');
+        this.highLevel = Math.max(0, this.highLevel - 15);
+        this.showStatus('😴 You rested. The taxi is quieter.');
         break;
-      case 'eat':
+      case 'repair':
         if (this.money >= EAT_COST) {
           this.money -= EAT_COST;
-          this.hunger = Math.min(100, this.hunger + 40);
-          this.energy = Math.min(100, this.energy + 10);
-          // food sobers you up — but far less when you're already blazed (munchies)
-          this.highLevel = Math.max(0, this.highLevel - 12 * (1 - this.highLevel / 100));
-          this.showStatus('🍔 Munchies handled');
+          this.health = Math.min(100, this.health + 35);
+          this.showStatus('🔧 Taxi repaired.');
         }
         break;
-      case 'smoke':
-        if (this.money >= SMOKE_COST) {
-          this.money -= SMOKE_COST;
-          this.highLevel = Math.min(MAX_HIGH, this.highLevel + HIGH_PER_SMOKE);
-          SFX.playSmoke();
-          this.cameras.main.flash(600, 0, 160, 40);
-          this.showStatus('🌿 You take a fat rip...');
-        }
-        break;
-      case 'paydebt':
-        if (this.debt > 0 && this.money > 0) {
-          const pmt = Math.min(this.money, this.debt);
-          this.money -= pmt;
-          this.debt  -= pmt;
-          if (this.debt <= 0) {
-            this.debt = 0;
-            this.hasLoanShark = false;
-            this.nightsOwed = 0;
-            this.hunted = false;
-            this.hitmen.clear(true, true);
-            this.bullets.clear(true, true);
-            this.cameras.main.flash(500, 0, 200, 80);
-            this.showStatus('💸 Debt paid in full. Crew called off!');
-          } else {
-            this.showStatus(`💸 Paid $${Math.floor(pmt)} — $${Math.floor(this.debt)} still owed`);
-          }
-        }
+      case 'commune':
+        this.highLevel = Math.min(MAX_HIGH, this.highLevel + 20);
+        this.soulPowerReady = this.soulPowerUnlocked;
+        this.cameras.main.flash(500, 80, 230, 220);
+        this.showStatus(this.soulPowerUnlocked
+          ? '👻 Racer Soul is ready to take the wheel.'
+          : '👻 Something in the taxi answered.');
         break;
     }
 
@@ -2203,32 +2199,11 @@ class GameScene extends Phaser.Scene {
     this.cameras.main.shake(350, 0.016);
     SFX.playImpact(Math.min(1, spd / 300));
 
-    if (spd >= KILL_SPEED) {
-      // Too fast — fatal. Vehicular manslaughter.
-      npc.setTint(0x880000);
-      this.manslaughterCount++;
-      if (this.hasLoanShark) {
-        this.pendingDebt = (this.pendingDebt || 0) + DEBT_REPEAT;
-        this.showStatus(`💀 MANSLAUGHTER! +$${DEBT_REPEAT} owed`);
-      } else if (this.manslaughterCount >= this.diff.killsBeforeJail) {
-        this.showStatus('💀 VEHICULAR MANSLAUGHTER!');
-        this.time.delayedCall(1500, () => this.activateLoanShark());
-      } else {
-        const left = this.diff.killsBeforeJail - this.manslaughterCount;
-        this.showStatus(`💀 Manslaughter! ${left} more and the loan shark comes for you...`);
-      }
-      return;
-    }
-
-    // Non-fatal: injured
-    npc.setTint(0xffaa00);
-    if (this.jobType === 'ambulance' && !this.rescueActive) {
-      this.startRescue(npc);
-    } else if (this.jobType === 'ambulance') {
-      this.showStatus('😖 You clipped someone, one patient at a time!');
-    } else {
-      this.showStatus('😖 You clipped a pedestrian, ease off the gas!');
-    }
+    npc.destroy();
+    this.playerSpeed *= 0.5;
+    this.highLevel = Math.min(MAX_HIGH, this.highLevel + 8);
+    this.takeDamage(spd >= KILL_SPEED ? 14 : 7, false);
+    if (this.gameActive) this.showStatus('😱 The pedestrian escaped. The taxi liked that too much.');
   }
 
   startRescue(npc) {
@@ -2273,7 +2248,7 @@ class GameScene extends Phaser.Scene {
     this.health = Math.max(0, this.health - amount);
     if (shake) this.cameras.main.shake(350, 0.025);
     this.cameras.main.flash(300, 180, 0, 0);
-    if (this.health <= 0) this.triggerGameOver('You died from your injuries.');
+    if (this.health <= 0) this.triggerGameOver('The haunted taxi was destroyed.');
   }
 
   activateLoanShark() {
@@ -2291,7 +2266,7 @@ class GameScene extends Phaser.Scene {
     this.hitmen.clear(true, true);
     this.bullets.clear(true, true);
     this.cameras.main.flash(400, 0, 140, 60);
-    this.showStatus('🏁 LOST THEM! The crew gave up, for now.');
+    this.showStatus('🏁 LOST THEM! The monsters slipped back into the fog.');
   }
 
   spawnHitman() {
@@ -2325,7 +2300,7 @@ class GameScene extends Phaser.Scene {
     if (this.time.now < this.invulnUntil) return;
     this.invulnUntil = this.time.now + HITMAN_IFRAMES;
 
-    // You smash through the car — clears one attacker but hurts
+    // A monster capture damages the taxi and can bind a permanent hex.
     const ang = Math.atan2(this.player.y - hitman.y, this.player.x - hitman.x);
     hitman.destroy();
     this.player.x += Math.cos(ang) * 28;
@@ -2337,16 +2312,42 @@ class GameScene extends Phaser.Scene {
     this.tweens.add({ targets: this.player, alpha: 0.3, duration: 120, yoyo: true, repeat: 4,
       onComplete: () => this.player.setAlpha(1) });
     this.takeDamage(35, false);
-    if (this.gameActive) this.showStatus('💥 Rammed the crew off, but it cost you!');
+    if (!this.phantomSteering) {
+      this.phantomSteering = true;
+      this.highLevel = Math.min(MAX_HIGH, this.highLevel + 20);
+      if (this.gameActive) this.showStatus('⬡ HEXED: PHANTOM STEERING · the wheel now fights back');
+    } else if (this.gameActive) {
+      this.showStatus('👹 A monster caught the taxi! Integrity critical.');
+    }
   }
 
-  /* ── High Effects ── */
+  activateSoulPower() {
+    if (!this.soulPowerReady) {
+      this.showStatus(this.soulPowerUnlocked
+        ? '✨ Racer Soul is still recovering.'
+        : '🔒 Deliver a soul to unlock a taxi power.');
+      return;
+    }
+    this.soulPowerReady = false;
+    this.soulPowerUntil = this.time.now + 4500;
+    this.highLevel = Math.min(MAX_HIGH, this.highLevel + 12);
+    this.controlsInverted = false;
+    this.cameras.main.flash(260, 60, 245, 235);
+    this.showStatus('✨ RACER SOUL · supernatural handling for 4.5 seconds');
+  }
+
+  /* ── Haunt Effects ── */
   applyHighEffects(delta) {
     const hl = this.highLevel;
     const dt = delta / 1000;
 
     this.speedMod = 1 + hl / 100 * 0.55;
     this.turnMod  = 1 - hl / 100 * 0.35;
+    if (this.time.now < this.soulPowerUntil) {
+      this.speedMod += 0.3;
+      this.turnMod = 1.35;
+      this.controlsInverted = false;
+    }
 
     // Camera wobble shakes
     if (hl > 38) {
@@ -2363,11 +2364,11 @@ class GameScene extends Phaser.Scene {
       this.paranoidTimer -= delta;
       if (this.paranoidTimer <= 0) {
         const pool = [
-          '👁 IS THAT A COP?!', 'THEY KNOW', '😱 SOMEONE IS FOLLOWING YOU',
-          '🌀 THE ROAD IS BREATHING', '🐍 DID YOU SEE THAT SNAKE',
-          '🚔 POLICE EVERYWHERE', '💀 AM I DYING??', '🌈 WOAHHHHHH',
-          'ARE MY HANDS REAL', 'THE BUILDING IS MOVING',
-          '😰 TOO HIGH TOO HIGH', 'WHY IS EVERYTHING GREEN',
+          '👻 IS THAT A GHOST?!', 'THEY ARE WATCHING', '😱 SOMETHING IS IN THE BACKSEAT',
+          '🌀 THE FOG IS ALIVE', '🪦 DID THAT GRAVESTONE MOVE?',
+          '🦇 BATS EVERYWHERE', '💀 THE TREES ARE WHISPERING', '👺 WHAT WAS THAT',
+          'ARE THOSE EYES IN THE DARK', 'THE ROAD IS TWISTING',
+          '😰 GET ME OUT OF HERE', 'WHY IS EVERYTHING GLOWING',
         ];
         Bus.emit('paranoid', Phaser.Utils.Array.GetRandom(pool));
         this.paranoidTimer = Math.max(600, 3500 - hl * 22);
@@ -2414,24 +2415,24 @@ class GameScene extends Phaser.Scene {
       }
     };
 
-    trySpot(this.gasPos, '⛽ [E] Refuel $40 (+50 HP)', () => {
+    trySpot(this.gasPos, '⛽ [E] Repair taxi — $40', () => {
       if (this.money >= 40) {
         this.money -= 40;
         this.health = Math.min(100, this.health + 50);
         SFX.playPickup();
-        this.showStatus('⛽ Refueled! +50 HP');
+        this.showStatus('🔧 Taxi repaired! +50 integrity');
       } else {
         this.showStatus('Not enough cash!');
       }
     });
 
-    trySpot(this.storePos, `🏪 [E] Buy weed — $${SMOKE_COST}`, () => {
+    trySpot(this.storePos, `⛪ [E] Cleanse haunt — $${SMOKE_COST}`, () => {
       if (this.money >= SMOKE_COST) {
         this.money -= SMOKE_COST;
-        this.highLevel = Math.min(MAX_HIGH, this.highLevel + HIGH_PER_SMOKE);
+        this.highLevel = Math.max(0, this.highLevel - HIGH_PER_SMOKE);
         SFX.playSmoke();
-        this.cameras.main.flash(400, 0, 160, 40);
-        this.showStatus('🌿 Bought weed! Getting high...');
+        this.cameras.main.flash(400, 100, 220, 255);
+        this.showStatus('⛪ The taxi falls quiet. Haunt reduced.');
       } else {
         this.showStatus('Not enough cash!');
       }
@@ -2465,18 +2466,21 @@ class GameScene extends Phaser.Scene {
         this.dropoffMarker.setVisible(true);
         SFX.playPickup();
         let msg;
-        if (this.jobType === 'pizza') {
-          msg = '🍕 Pizza picked up! Deliver it!';
+        if (this.jobType === 'living') {
+          msg = '🚕 Passenger aboard. Get them across town!';
         } else {
-          // Randomised patient — sometimes stable, sometimes critical
+          // Soul passengers fade while they remain trapped in town.
           const critical = Math.random() < this.diff.criticalChance;
           this.patientHealth = critical ? Phaser.Math.Between(30, 55) : Phaser.Math.Between(70, 100);
-          msg = critical ? '🚑 CRITICAL patient! Race to the Hospital!' : '🚑 Patient loaded! Drive to Hospital!';
+          this.highLevel = Math.min(MAX_HIGH, this.highLevel + 18);
+          this.soulPowerReady = true;
+          msg = critical
+            ? '👻 FADING SOUL! Reach the cemetery!'
+            : '👻 Racer Soul aboard. Its power is ready!';
         }
         this.showStatus(msg);
       } else {
-        // Ambulance dropoff: healthier patient = bigger bonus
-        if (this.jobType === 'ambulance') this._patientBonus = Math.round(this.patientHealth);
+        if (this.jobType === 'soul') this._patientBonus = Math.round(this.patientHealth);
         this.patientHealth = 0;
         this.endShift(true);
       }
@@ -2497,9 +2501,9 @@ class GameScene extends Phaser.Scene {
   getJobStatus() {
     if (this.isInTimeOff) return 'Time off...';
     if (!this.isOnShift)  return '';
-    if (this.jobType === 'pizza')
-      return this.jobPhase === 'pickup' ? '🍕 → Pizza HQ' : '🍕 → Deliver to house';
-    return this.jobPhase === 'pickup' ? '🚑 → Pick up patient' : '🚑 → Drive to Hospital';
+    if (this.jobType === 'living')
+      return this.jobPhase === 'pickup' ? '☀️ → Taxi Depot' : '🚕 → Living fare';
+    return this.jobPhase === 'pickup' ? '🌙 → Stranded soul' : '👻 → Cemetery';
   }
 
   triggerGameOver(reason, win = false) {
@@ -2540,6 +2544,10 @@ class GameScene extends Phaser.Scene {
 
     const dt  = delta / 1000;
     const inv = this.controlsInverted ? -1 : 1;
+    if (Phaser.Input.Keyboard.JustDown(this.powerKey) || this.touch.power) {
+      this.touch.power = false;
+      this.activateSoulPower();
+    }
 
     const goUp    = this.cursors.up.isDown    || this.moveKeys.KeyW || this.touch.up;
     const goDown  = this.cursors.down.isDown  || this.moveKeys.KeyS || this.touch.down;
@@ -2563,6 +2571,9 @@ class GameScene extends Phaser.Scene {
     // Serpentine & loss of control scale with high level
     if (Math.abs(this.playerSpeed) > 25) {
       const hl = this.highLevel;
+      if (this.phantomSteering && Math.random() < 0.006 * delta / 16) {
+        this.playerAngle += (Math.random() < 0.5 ? -1 : 1) * Phaser.Math.Between(5, 13);
+      }
       if (hl > 20) {
         // Smooth sine-wave drift — frequency and amplitude both grow with highness
         const t    = (hl - 20) / 80;              // 0→1 over hl 20→100
@@ -2579,7 +2590,7 @@ class GameScene extends Phaser.Scene {
       }
     }
 
-    const sprint    = (this.sprintKey && this.sprintKey.isDown) ? 1.4 : 1;   // hold Shift to sprint
+    const sprint    = this.time.now < this.soulPowerUntil ? 1.35 : 1;
     const energyMod = 0.85 + 0.15 * (this.energy / 100);                     // tired = a bit sluggish
     const MAX_SPD = 320 * (this.speedMod || 1) * sprint * energyMod;
     const ACCEL   = 290 * sprint;
@@ -2616,10 +2627,14 @@ class GameScene extends Phaser.Scene {
     );
     this.player.setAngle(this.playerAngle);
 
-    this.highLevel = Math.max(0, this.highLevel - HIGH_DECAY * dt);
+    if (this.jobType === 'soul' && this.jobPhase === 'dropoff') {
+      this.highLevel = Math.min(MAX_HIGH, this.highLevel + 0.7 * dt);
+    } else {
+      this.highLevel = Math.max(0, this.highLevel - HIGH_DECAY * dt);
+    }
     this.score    += this.highLevel * dt * 0.8;
     this.peakHigh  = Math.max(this.peakHigh, this.highLevel);
-    if (this.score >= WIN_SCORE) this.triggerGameOver('You hit 420,000. Legend.', true);
+    if (this.score >= WIN_SCORE) this.triggerGameOver('You carried the final soul beyond the town limits.', true);
 
     this.applyHighEffects(delta);
 
@@ -2660,11 +2675,6 @@ class GameScene extends Phaser.Scene {
         const angle = Math.atan2(dy, dx);
         h.setVelocity(Math.cos(angle) * h.speed, Math.sin(angle) * h.speed);
         h.setAngle(angle * Phaser.Math.RAD_TO_DEG + 90);
-        // Fire drive-by shots when close
-        if (dist < 260 && time - h.lastShotTime > 1000) {
-          this._fireDriveby(h);
-          h.lastShotTime = time;
-        }
       });
 
       // Shake-them evade meter: hold the crew far enough away for long enough → lose them
@@ -2687,11 +2697,11 @@ class GameScene extends Phaser.Scene {
       if (this.shiftTimer <= 0) this.endShift(false);
     }
 
-    // Carrying an ambulance patient — their health ticks down; don't let them flatline
-    if (this.isOnShift && this.jobType === 'ambulance' && this.jobPhase === 'dropoff' && this.patientHealth > 0) {
+    // A carried soul fades until delivered to the cemetery.
+    if (this.isOnShift && this.jobType === 'soul' && this.jobPhase === 'dropoff' && this.patientHealth > 0) {
       this.patientHealth = Math.max(0, this.patientHealth - this.diff.patientDrain * dt);
       if (this.patientHealth <= 0) {
-        this.showStatus('💀 You lost the patient...');
+        this.showStatus('💨 The soul faded before you reached the cemetery.');
         this.patientHealth = 0;
         this.endShift(false);
       }
@@ -2713,9 +2723,12 @@ class GameScene extends Phaser.Scene {
       hunted:     this.hunted,
       shakeProgress: this.hunted ? this.evadeTimer / SHAKE_TIME : 0,
       rescue:     this.rescueActive ? Math.ceil(this.rescueTimer) : 0,
-      patient:    (this.isOnShift && this.jobType === 'ambulance' && this.jobPhase === 'dropoff') ? this.patientHealth : -1,
-      pizzaTimer: (this.isOnShift && this.jobType === 'pizza') ? Math.ceil(this.shiftTimer) : -1,
+      patient:    (this.isOnShift && this.jobType === 'soul' && this.jobPhase === 'dropoff') ? this.patientHealth : -1,
+      pizzaTimer: (this.isOnShift && this.jobType === 'living') ? Math.ceil(this.shiftTimer) : -1,
       difficulty: this.diff.name,
+      hex:        this.phantomSteering ? 'PHANTOM STEERING' : '',
+      power:      this.time.now < this.soulPowerUntil ? 'RACER SOUL ACTIVE' :
+                  (this.soulPowerReady ? 'RACER SOUL READY' : ''),
       speed:      Math.abs(this.playerSpeed),
       health:     this.health,
       timeOfDay:  this.timeOfDay,
