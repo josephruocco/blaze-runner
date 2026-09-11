@@ -1559,9 +1559,6 @@ class GameScene extends Phaser.Scene {
           }).setOrigin(0.5).setDepth(5);
         } else if (isPizz) {
           this.pizzeriaPos = { x: bottomX, y: bottomY };
-          // pulsing entrance circle
-          const pc = this.add.circle(bottomX, bottomY, 14, 0xff6600, 0.85).setDepth(6);
-          this.tweens.add({ targets: pc, scaleX: 1.5, scaleY: 1.5, alpha: 0.3, duration: 900, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
           this.add.text(cx, cy, '🚕\nTAXI DEPOT', {
             fontSize: '20px', fontFamily: 'Arial Black, Arial',
             color: '#ffffff', align: 'center', stroke: '#000', strokeThickness: 3
@@ -2035,6 +2032,22 @@ class GameScene extends Phaser.Scene {
   }
 
   /* ── Jobs ── */
+  randomRoadPoint() {
+    const vertical = Math.random() < 0.5;
+    if (vertical) {
+      const col = Phaser.Utils.Array.GetRandom(this.roadCols);
+      return {
+        x: col * TILE + TILE,
+        y: Phaser.Math.Between(100, Math.max(101, (this.southBound || WORLD_H) - 100))
+      };
+    }
+    const row = Phaser.Utils.Array.GetRandom(this.roadRows);
+    return {
+      x: Phaser.Math.Between(100, WORLD_W - 100),
+      y: row * TILE + TILE
+    };
+  }
+
   startNewShift() {
     if (!this.gameActive) return;
 
@@ -2050,21 +2063,23 @@ class GameScene extends Phaser.Scene {
 
     if (this.mapDef.construction) this.closeStreet();   // a fresh street closure each shift
 
+    const pickup = this.randomRoadPoint();
     const house = Phaser.Utils.Array.GetRandom(this.houseSpots);
 
     if (!night) {
-      this.pickupDest  = { ...this.pizzeriaPos };
+      this.pickupDest  = pickup;
       this.dropoffDest = { x: house.x, y: house.y };
-      this.showStatus('☀️ DAY SHIFT · Pick up a living fare at the TAXI DEPOT');
+      this.showStatus('☀️ DAY SHIFT · Find the waiting passenger');
     } else {
-      this.pickupDest  = { x: house.x, y: house.y };
+      this.pickupDest  = pickup;
       this.dropoffDest = { ...this.hospitalPos };
       this.showStatus('🌙 NIGHT SHIFT · Find the stranded soul');
-      // pulsing circle on the pickup house
-      this._houseCircle = this.add.circle(house.x, house.y, 14, 0x55f5ec, 0.85).setDepth(6);
-      this.tweens.add({ targets: this._houseCircle, scaleX: 1.5, scaleY: 1.5, alpha: 0.3,
-        duration: 900, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
     }
+
+    const pickupColor = night ? 0x55f5ec : 0xffdd44;
+    this._houseCircle = this.add.circle(pickup.x, pickup.y, night ? 20 : 14, pickupColor, 0.78).setDepth(6);
+    this.tweens.add({ targets: this._houseCircle, scaleX: 1.6, scaleY: 1.6, alpha: 0.2,
+      duration: 800, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
 
     this.pickupMarker.setPosition(this.pickupDest.x, this.pickupDest.y - 45);
     this.pickupMarker.setVisible(true);
