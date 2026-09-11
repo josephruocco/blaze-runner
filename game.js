@@ -1550,9 +1550,6 @@ class GameScene extends Phaser.Scene {
           g.fillRect(cx - 6, cy - 28, 12, 56);
           g.fillRect(cx - 28, cy - 6, 56, 12);
           this.hospitalPos = { x: bottomX, y: bottomY };
-          // pulsing entrance circle
-          const hc = this.add.circle(bottomX, bottomY, 14, 0xff4444, 0.85).setDepth(6);
-          this.tweens.add({ targets: hc, scaleX: 1.5, scaleY: 1.5, alpha: 0.3, duration: 900, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
           this.add.text(cx, cy + 50, '🪦 CEMETERY', {
             fontSize: '16px', fontFamily: 'Arial Black, Arial',
             color: '#ff4444', stroke: '#fff', strokeThickness: 3
