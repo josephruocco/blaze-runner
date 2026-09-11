@@ -1577,6 +1577,22 @@ class GameScene extends Phaser.Scene {
           this.houseSpots.push({ x: accessX, y: accessY });
           g.fillStyle(0x8B4513, 0.7);
           g.fillRect(cx - 8, by + bh - mg - 20, 16, 20);
+
+          // A few non-interactive landmarks sell the cursed-town setting without
+          // adding icons or implying that every named building is a destination.
+          const landmarkNames = [
+            'CITY MORGUE', 'BLACK VEIL MOTEL', 'LAST STOP DINER',
+            'HOLLOWAY FUNERAL HOME', 'MOONLIGHT LAUNDROMAT', 'ORPHEUS CHAPEL'
+          ];
+          const blockIndex = sr * sections + sc;
+          if (blockIndex % 4 === 1) {
+            const name = landmarkNames[(blockIndex + this._chosenMap + sections) % landmarkNames.length];
+            this.add.text(cx, cy, name, {
+              fontSize: '11px', fontFamily: 'Arial Black, Arial', color: '#b8d5d1',
+              align: 'center', wordWrap: { width: Math.max(120, bw - 50) },
+              stroke: '#07131d', strokeThickness: 3
+            }).setOrigin(0.5).setDepth(5).setAlpha(0.82);
+          }
         }
       }
     }
