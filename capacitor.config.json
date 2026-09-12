@@ -1,0 +1,8 @@
+{
+  "appId": "com.joeruocco.ghosttaxi",
+  "appName": "Ghost Taxi",
+  "webDir": "dist",
+  "server": {
+    "iosScheme": "capacitor"
+  }
+}

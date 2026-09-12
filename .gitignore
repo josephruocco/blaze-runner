@@ -3,3 +3,8 @@ stoner-sim.zip
 .DS_Store
 blaze-runner-deploy/
 blaze-runner-itch.zip
+node_modules/
+dist/
+ios/App/Pods/
+ios/App/App/public/
+ios/App/DerivedData/

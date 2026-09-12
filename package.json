@@ -1,0 +1,19 @@
+{
+  "name": "ghost-taxi",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Ghost Taxi: Graveyard Shift",
+  "scripts": {
+    "build:web": "node scripts/build-web.mjs",
+    "ios:add": "npm run build:web && npx cap add ios",
+    "ios:sync": "npm run build:web && npx cap sync ios",
+    "ios:open": "npx cap open ios"
+  },
+  "dependencies": {
+    "@capacitor/core": "^8.5.2",
+    "@capacitor/ios": "^8.5.2"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.5.2"
+  }
+}
