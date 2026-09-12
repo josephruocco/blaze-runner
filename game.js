@@ -21,6 +21,7 @@ const WORLD_W = COLS * TILE;
 const WORLD_H = ROWS * TILE;
 
 const PIXEL_FONT = '"Press Start 2P", monospace';
+const SPOOKY_FONT = '"Creepster", "Arial Black", sans-serif';
 
 /* ── Version + changelog (newest first). Bump when features ship. ── */
 // CHANGELOG + VERSION now live in changelog.js (shared with the updates page),
@@ -893,7 +894,7 @@ class UIScene extends Phaser.Scene {
       ['☀️ DAY FARES',      'Carry living passengers for cash before sunset'],
       ['🌙 SOUL FARES',     'Carry stranded souls after dark before they fade'],
       ['👻 HAUNT',          'More haunt means more speed and score — but less control'],
-      ['👹 MONSTERS',       'Monster cars hunt soul passengers through the night'],
+      ['👹 MONSTERS',       'Ghouls hunt soul passengers through the night'],
       ['✨ SOUL POWER',     'Rescue the Racer Soul, then press SHIFT / POWER'],
       ['⬡ HEXES',           'Getting caught binds dangerous power to the taxi'],
       ['⛽ GARAGE',         'Drive close and press E to restore taxi integrity'],
@@ -1172,7 +1173,7 @@ class UIScene extends Phaser.Scene {
     const x = Phaser.Math.Between(160, W - 160);
     const y = Phaser.Math.Between(120, H - 120);
     const t = this.add.text(x, y, msg, {
-      fontSize: '21px', fontFamily: 'Arial Black, Arial',
+      fontSize: '27px', fontFamily: SPOOKY_FONT, letterSpacing: 2,
       color: '#ff2222', stroke: '#000', strokeThickness: 4
     }).setOrigin(0.5).setScrollFactor(0).setDepth(200).setAlpha(0);
     this.tweens.add({
@@ -1328,7 +1329,7 @@ class GameScene extends Phaser.Scene {
     this.physics.add.overlap (this.player, this.vengefulGhosts, this.hitByVengefulSoul, null, this);
 
     this.statusText = this.add.text(W / 2, 80, '', {
-      fontSize: '22px', fontFamily: 'Arial Black, Arial', color: '#ffffff',
+      fontSize: '29px', fontFamily: SPOOKY_FONT, color: '#e9fff6', letterSpacing: 2,
       stroke: '#000000', strokeThickness: 5,
       backgroundColor: '#00000099', padding: { x: 12, y: 6 }
     }).setOrigin(0.5).setDepth(60).setScrollFactor(0);
@@ -1346,7 +1347,7 @@ class GameScene extends Phaser.Scene {
     SFX.startMusic();
 
     this.time.delayedCall(1800, () => this.startNewShift());
-    this.showStatus(`📍 ${this.mapDef.name} · starting shift soon...`);
+    this.showStatus(`${this.mapDef.name} · STARTING SHIFT SOON...`);
   }
 
   /* ── World ── */
@@ -2099,11 +2100,11 @@ class GameScene extends Phaser.Scene {
     if (!night) {
       this.pickupDest  = pickup;
       this.dropoffDest = { x: house.x, y: house.y };
-      this.showStatus('☀️ DAY SHIFT · Find the waiting passenger');
+      this.showStatus('DAY SHIFT · FIND THE WAITING PASSENGER');
     } else {
       this.pickupDest  = pickup;
       this.dropoffDest = { ...this.hospitalPos };
-      this.showStatus('🌙 NIGHT SHIFT · Find the stranded soul');
+      this.showStatus('NIGHT SHIFT · FIND THE STRANDED SOUL');
     }
 
     const pickupColor = night ? 0x55f5ec : 0xffdd44;
@@ -2123,8 +2124,8 @@ class GameScene extends Phaser.Scene {
       this.hunted = true;
       this.highLevel = Math.min(MAX_HIGH, this.highLevel + Math.min(30, this.vengefulSouls * 6));
       this.time.delayedCall(2500, () => this.showStatus(this.vengefulSouls > 0
-        ? `👻 ${this.vengefulSouls} soul${this.vengefulSouls === 1 ? '' : 's'} you created came back for you.`
-        : '👹 Monsters are hunting your passenger. Lose them!'));
+        ? `${this.vengefulSouls} SOUL${this.vengefulSouls === 1 ? '' : 'S'} YOU CREATED CAME BACK FOR YOU.`
+        : 'MONSTERS ARE HUNTING YOUR PASSENGER. LOSE THEM!'));
       for (let i = 0; i < 2; i++) {
         this.time.delayedCall(4500 + i * 7000, () => { if (this.isOnShift && this.hunted) this.spawnGhoul(); });
       }
@@ -2180,16 +2181,16 @@ class GameScene extends Phaser.Scene {
       const toSpawn = Math.min(3, 40 - aliveCount);
       if (toSpawn > 0) this._spawnNPCs(toSpawn);
       this.showStatus(this.jobType === 'soul'
-        ? '👻 Soul delivered and bound to the taxi! Racer power unlocked.'
-        : `🚕 Living fare complete! +$${pay}`);
+        ? 'SOUL DELIVERED AND BOUND TO THE TAXI. RACER POWER UNLOCKED.'
+        : `LIVING FARE COMPLETE. +$${pay}`);
     } else {
-      this.showStatus('⏰ Shift ended, no pay');
+      this.showStatus('SHIFT ENDED. NO PAY.');
     }
 
     // Apply any debt racked up mid-shift from extra kills
     if (this.pendingDebt > 0) {
       this.debt += this.pendingDebt;
-      if (this.pendingDebt > 0) this.showStatus(`🦈 +$${this.pendingDebt} added to your debt`);
+      if (this.pendingDebt > 0) this.showStatus(`+$${this.pendingDebt} ADDED TO YOUR DEBT.`);
       this.pendingDebt = 0;
     }
 
@@ -2210,13 +2211,13 @@ class GameScene extends Phaser.Scene {
       case 'rest':
         this.energy = Math.min(100, this.energy + 40);
         this.highLevel = Math.max(0, this.highLevel - 15);
-        this.showStatus('😴 You rested. The taxi is quieter.');
+        this.showStatus('YOU RESTED. THE TAXI IS QUIETER.');
         break;
       case 'repair':
         if (this.money >= EAT_COST) {
           this.money -= EAT_COST;
           this.health = Math.min(100, this.health + 35);
-          this.showStatus('🔧 Taxi repaired.');
+          this.showStatus('TAXI REPAIRED.');
         }
         break;
       case 'commune':
@@ -2224,8 +2225,8 @@ class GameScene extends Phaser.Scene {
         this.soulPowerReady = this.soulPowerUnlocked;
         this.cameras.main.flash(500, 80, 230, 220);
         this.showStatus(this.soulPowerUnlocked
-          ? '👻 Racer Soul is ready to take the wheel.'
-          : '👻 Something in the taxi answered.');
+          ? 'RACER SOUL IS READY TO TAKE THE WHEEL.'
+          : 'SOMETHING IN THE TAXI ANSWERED.');
         break;
     }
 
@@ -2258,9 +2259,9 @@ class GameScene extends Phaser.Scene {
     this.takeDamage(spd >= KILL_SPEED ? 14 : 7, false);
     if (!this.isNight()) {
       this.vengefulSouls++;
-      if (this.gameActive) this.showStatus('💀 Their soul will remember you when night falls.');
+      if (this.gameActive) this.showStatus('THEIR SOUL WILL REMEMBER YOU WHEN NIGHT FALLS.');
     } else if (this.gameActive) {
-      this.showStatus('👻 The night noticed what you did.');
+      this.showStatus('THE NIGHT NOTICED WHAT YOU DID.');
     }
   }
 
@@ -2273,7 +2274,7 @@ class GameScene extends Phaser.Scene {
     this.tweens.add({ targets: this._rescueCircle, scaleX: 1.6, scaleY: 1.6, alpha: 0.3, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
     this.cameras.main.flash(300, 200, 120, 0);
     SFX.playSiren();
-    this.showStatus('🚑 Injured! Rush them to the HOSPITAL to save them!');
+    this.showStatus('INJURED. RUSH THEM TO THE HOSPITAL.');
   }
 
   endRescue(saved) {
@@ -2283,9 +2284,9 @@ class GameScene extends Phaser.Scene {
       this.money += 150; this.score += 200;
       this.cameras.main.flash(400, 0, 200, 80);
       SFX.playDropoff();
-      this.showStatus('❤️ You saved them! +$150');
+      this.showStatus('YOU SAVED THEM. +$150');
     } else {
-      this.showStatus('💀 They didn\'t make it...');
+      this.showStatus('THEY DID NOT MAKE IT...');
       if (!this.hasLoanShark) this.activateLoanShark();
       else this.pendingDebt = (this.pendingDebt || 0) + DEBT_REPEAT;
     }
@@ -2304,7 +2305,7 @@ class GameScene extends Phaser.Scene {
     this.nightsOwed = 0;
     this.money = Math.max(0, this.money) + 300;
     this.cameras.main.flash(800, 180, 0, 0);
-    this.showStatus(`🦈 Loan Shark bailed you out! $${DEBT_PER_KILL} debt — unpaid bargains draw monsters after dark.`);
+    this.showStatus(`THE LOAN SHARK BAILED YOU OUT. $${DEBT_PER_KILL} DEBT DRAWS MONSTERS AFTER DARK.`);
   }
 
   loseTheCrew() {
@@ -2313,7 +2314,7 @@ class GameScene extends Phaser.Scene {
     this.ghouls.clear(true, true);
     this.vengefulGhosts.clear(true, true);
     this.cameras.main.flash(400, 0, 140, 60);
-    this.showStatus('🏁 LOST THEM! The monsters slipped back into the fog.');
+    this.showStatus('LOST THEM. THE MONSTERS SLIPPED BACK INTO THE FOG.');
   }
 
   spawnGhoul() {
@@ -2367,7 +2368,7 @@ class GameScene extends Phaser.Scene {
       this.highLevel = Math.min(MAX_HIGH, this.highLevel + 20);
       if (this.gameActive) this.showStatus('⬡ HEXED: PHANTOM STEERING · the wheel now fights back');
     } else if (this.gameActive) {
-      this.showStatus('👹 A monster caught the taxi! Integrity critical.');
+      this.showStatus('A MONSTER CAUGHT THE TAXI. INTEGRITY CRITICAL.');
     }
   }
 
@@ -2381,14 +2382,14 @@ class GameScene extends Phaser.Scene {
     this.cameras.main.shake(300, 0.02);
     SFX.playImpact(0.7);
     this.takeDamage(18, false);
-    if (this.gameActive) this.showStatus('👻 A soul you created caught up with you.');
+    if (this.gameActive) this.showStatus('A SOUL YOU CREATED CAUGHT UP WITH YOU.');
   }
 
   activateSoulPower() {
     if (!this.soulPowerReady) {
       this.showStatus(this.soulPowerUnlocked
-        ? '✨ Racer Soul is still recovering.'
-        : '🔒 Deliver a soul to unlock a taxi power.');
+        ? 'RACER SOUL IS STILL RECOVERING.'
+        : 'DELIVER A SOUL TO UNLOCK A TAXI POWER.');
       return;
     }
     this.soulPowerReady = false;
@@ -2396,7 +2397,7 @@ class GameScene extends Phaser.Scene {
     this.highLevel = Math.min(MAX_HIGH, this.highLevel + 12);
     this.controlsInverted = false;
     this.cameras.main.flash(260, 60, 245, 235);
-    this.showStatus('✨ RACER SOUL · supernatural handling for 4.5 seconds');
+    this.showStatus('RACER SOUL · SUPERNATURAL HANDLING FOR 4.5 SECONDS');
   }
 
   /* ── Haunt Effects ── */
@@ -2427,11 +2428,11 @@ class GameScene extends Phaser.Scene {
       this.paranoidTimer -= delta;
       if (this.paranoidTimer <= 0) {
         const pool = [
-          '👻 IS THAT A GHOST?!', 'THEY ARE WATCHING', '😱 SOMETHING IS IN THE BACKSEAT',
-          '🌀 THE FOG IS ALIVE', '🪦 DID THAT GRAVESTONE MOVE?',
-          '🦇 BATS EVERYWHERE', '💀 THE TREES ARE WHISPERING', '👺 WHAT WAS THAT',
+          'IS THAT A GHOST?', 'THEY ARE WATCHING', 'SOMETHING IS IN THE BACKSEAT',
+          'THE FOG IS ALIVE', 'DID THAT GRAVESTONE MOVE?',
+          'BATS EVERYWHERE', 'THE TREES ARE WHISPERING', 'WHAT WAS THAT',
           'ARE THOSE EYES IN THE DARK', 'THE ROAD IS TWISTING',
-          '😰 GET ME OUT OF HERE', 'WHY IS EVERYTHING GLOWING',
+          'GET ME OUT OF HERE', 'WHY IS EVERYTHING GLOWING',
         ];
         Bus.emit('paranoid', Phaser.Utils.Array.GetRandom(pool));
         this.paranoidTimer = Math.max(600, 3500 - hl * 22);
@@ -2446,7 +2447,7 @@ class GameScene extends Phaser.Scene {
       } else if (Math.random() < dt * 0.008 * (hl / 100)) {
         this.controlsInverted = true;
         this.invertTimer = 1800 + Math.random() * 2200;
-        Bus.emit('paranoid', '🔄 CONTROLS REVERSED!');
+        Bus.emit('paranoid', 'CONTROLS REVERSED');
       }
     }
 
@@ -2478,24 +2479,24 @@ class GameScene extends Phaser.Scene {
       }
     };
 
-    trySpot(this.gasPos, '⛽ [E] Repair taxi — $40', () => {
+    trySpot(this.gasPos, '[E] REPAIR TAXI · $40', () => {
       if (this.money >= 40) {
         this.money -= 40;
         this.health = Math.min(100, this.health + 50);
         SFX.playPickup();
-        this.showStatus('🔧 Taxi repaired! +50 integrity');
+        this.showStatus('TAXI REPAIRED. +50 INTEGRITY.');
       } else {
         this.showStatus('Not enough cash!');
       }
     });
 
-    trySpot(this.storePos, `⛪ [E] Cleanse haunt — $${SMOKE_COST}`, () => {
+    trySpot(this.storePos, `[E] CLEANSE HAUNT · $${SMOKE_COST}`, () => {
       if (this.money >= SMOKE_COST) {
         this.money -= SMOKE_COST;
         this.highLevel = Math.max(0, this.highLevel - HIGH_PER_SMOKE);
         SFX.playSmoke();
         this.cameras.main.flash(400, 100, 220, 255);
-        this.showStatus('⛪ The taxi falls quiet. Haunt reduced.');
+        this.showStatus('THE TAXI FALLS QUIET. HAUNT REDUCED.');
       } else {
         this.showStatus('Not enough cash!');
       }
@@ -2530,7 +2531,7 @@ class GameScene extends Phaser.Scene {
         SFX.playPickup();
         let msg;
         if (this.jobType === 'living') {
-          msg = '🚕 Passenger aboard. Get them across town!';
+          msg = 'PASSENGER ABOARD. GET THEM ACROSS TOWN.';
         } else {
           // Soul passengers fade while they remain trapped in town.
           const critical = Math.random() < this.diff.criticalChance;
@@ -2538,8 +2539,8 @@ class GameScene extends Phaser.Scene {
           this.highLevel = Math.min(MAX_HIGH, this.highLevel + 18);
           this.soulPowerReady = true;
           msg = critical
-            ? '👻 FADING SOUL! Reach the cemetery!'
-            : '👻 Racer Soul aboard. Its power is ready!';
+            ? 'FADING SOUL. REACH THE CEMETERY.'
+            : 'RACER SOUL ABOARD. ITS POWER IS READY.';
         }
         this.showStatus(msg);
       } else {
@@ -2776,7 +2777,7 @@ class GameScene extends Phaser.Scene {
     if (this.isOnShift && this.jobType === 'soul' && this.jobPhase === 'dropoff' && this.patientHealth > 0) {
       this.patientHealth = Math.max(0, this.patientHealth - this.diff.patientDrain * dt);
       if (this.patientHealth <= 0) {
-        this.showStatus('💨 The soul faded before you reached the cemetery.');
+        this.showStatus('THE SOUL FADED BEFORE YOU REACHED THE CEMETERY.');
         this.patientHealth = 0;
         this.endShift(false);
       }
@@ -2844,7 +2845,10 @@ function bootGame() {
 
 // Wait for the pixel font so canvas text renders in it (not a fallback), then boot.
 if (document.fonts && document.fonts.load) {
-  document.fonts.load('16px "Press Start 2P"').then(bootGame).catch(bootGame);
+  Promise.all([
+    document.fonts.load('16px "Press Start 2P"'),
+    document.fonts.load('16px "Creepster"')
+  ]).then(bootGame).catch(bootGame);
 } else {
   bootGame();
 }
