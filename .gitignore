@@ -8,3 +8,4 @@ dist/
 ios/App/Pods/
 ios/App/App/public/
 ios/App/DerivedData/
+ios/build/
