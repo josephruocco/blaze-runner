@@ -39,9 +39,9 @@ const JOB_PAY        = 180;
 const REACH_DIST     = 90;
 const DEBT_PER_KILL  = 2000;   // first manslaughter puts you here
 const DEBT_REPEAT    = 1500;   // each additional kill adds this
-const HITMAN_IFRAMES = 1200;   // ms of invulnerability after a ram
-const BOLD_NIGHTS    = 3;      // nights owing before the crew hunts in daylight too
-const SHAKE_DIST     = 700;    // px of separation needed to start shaking the crew
+const MONSTER_IFRAMES = 1200;  // ms of invulnerability after a monster strike
+const BOLD_NIGHTS    = 3;      // nights owing before the monsters hunt in daylight too
+const SHAKE_DIST     = 700;    // px of separation needed to start shaking the monsters
 const SHAKE_TIME     = 6;      // seconds of separation to fully lose them
 const KILL_SPEED     = 230;    // below this a pedestrian is only injured, not killed
 const RESCUE_TIME    = 22;     // seconds to get an injured pedestrian to the hospital
@@ -826,8 +826,7 @@ class UIScene extends Phaser.Scene {
       stroke: '#000', strokeThickness: 2
     }).setOrigin(1, 0).setScrollFactor(0);
 
-    // ── Vignette & tint overlays ──
-    this.vignette    = this.add.graphics().setScrollFactor(0).setDepth(90);
+    // ── Supernatural tint overlay ──
     this.tintOverlay = this.add.rectangle(W / 2, H / 2, W, H, 0x00aa44, 0).setScrollFactor(0).setDepth(89);
 
     // ── Minimap (bottom-right) — hidden on touch to make room for controls ──
@@ -1086,7 +1085,10 @@ class UIScene extends Phaser.Scene {
     this.moneyText.setText(`$${Math.floor(this.money)}`);
     this.scoreText.setText(`Score: ${Math.floor(this.score)}`);
     this.jobText.setText(d.jobStatus || '');
-    this.debtText.setText(d.hex ? `⬡ HEX: ${d.hex}` : '');
+    const curses = [];
+    if (d.hex) curses.push(`⬡ HEX: ${d.hex}`);
+    if (d.vengefulSouls > 0) curses.push(`👻 ${d.vengefulSouls} VENGEFUL`);
+    this.debtText.setText(curses.join('  ·  '));
     this.rescueText.setText('');
 
     // Pizza delivery countdown
@@ -1148,7 +1150,6 @@ class UIScene extends Phaser.Scene {
     if (d.power)             fx.push(`✨ ${d.power}`);
     this.fxText.setText(fx.join('\n'));
 
-    this.updateVignette();
     this.tintOverlay.setAlpha(Math.max(0, (this.highLevel - 25) / 75 * 0.13));
 
     // Night overlay: cos peaks at noon (0.5), troughs at midnight (0 or 1)
@@ -1165,18 +1166,6 @@ class UIScene extends Phaser.Scene {
       const isNight = nightAlpha > 0.05;
       this.clockText.setText(`${isNight ? '🌙' : '☀️'} ${h12}:${String(min).padStart(2,'0')} ${ampm}`);
     }
-  }
-
-  updateVignette() {
-    this.vignette.clear();
-    if (this.highLevel < 45) return;
-    const s = (this.highLevel - 45) / 55;
-    const eW = W * s * 0.22, eH = H * s * 0.22;
-    this.vignette.fillStyle(0x001100, s * 0.75);
-    this.vignette.fillRect(0, 0, eW, H);
-    this.vignette.fillRect(W - eW, 0, eW, H);
-    this.vignette.fillRect(0, 0, W, eH);
-    this.vignette.fillRect(0, H - eH, W, eH);
   }
 
   showParanoid(msg) {
@@ -1278,6 +1267,7 @@ class GameScene extends Phaser.Scene {
     this.pendingDebt      = 0;
     this.timeOfDay        = 0.70; // one final day fare before the first night shift
     this.boundSouls       = 0;
+    this.vengefulSouls    = 0;
     this.soulPowerUnlocked= false;
     this.soulPowerReady   = false;
     this.soulPowerUntil   = 0;
@@ -1290,11 +1280,11 @@ class GameScene extends Phaser.Scene {
 
     this.wallGroup  = this.physics.add.staticGroup();
     this.npcs       = this.physics.add.group();
-    this.bullets    = this.physics.add.group();
-    this.hitmen     = this.physics.add.group();
+    this.ghouls     = this.physics.add.group();
+    this.vengefulGhosts = this.physics.add.group();
     this.traffic    = this.physics.add.group();
-    this.hunted      = false;  // is the current shift a hunted (crew active) shift
-    this.evadeTimer  = 0;      // seconds of separation built up toward shaking the crew
+    this.hunted      = false;  // is the current shift a hunted shift
+    this.evadeTimer  = 0;      // seconds of separation built up toward escaping the monsters
     this.nightsOwed  = 0;      // night shifts started while still in debt
     this.invulnUntil = 0;      // i-frame timestamp after a ram
     this.touch = { up: false, down: false, left: false, right: false, brake: false, interact: false, power: false, pause: false,
@@ -1332,10 +1322,10 @@ class GameScene extends Phaser.Scene {
 
     this.physics.add.collider(this.player, this.wallGroup, this.hitWall,    null, this);
     this.physics.add.collider(this.npcs,   this.wallGroup);
-    this.physics.add.collider(this.hitmen, this.wallGroup);
+    this.physics.add.collider(this.ghouls, this.wallGroup);
     this.physics.add.overlap (this.player, this.npcs,    this.hitNPC,     null, this);
-    this.physics.add.overlap (this.player, this.bullets,  this.hitBullet,  null, this);
-    this.physics.add.overlap (this.player, this.hitmen,   this.hitByHitman, null, this);
+    this.physics.add.overlap (this.player, this.ghouls,   this.hitByGhoul, null, this);
+    this.physics.add.overlap (this.player, this.vengefulGhosts, this.hitByVengefulSoul, null, this);
 
     this.statusText = this.add.text(W / 2, 80, '', {
       fontSize: '22px', fontFamily: 'Arial Black, Arial', color: '#ffffff',
@@ -1682,13 +1672,34 @@ class GameScene extends Phaser.Scene {
     ambG.generateTexture('car_amb', 36, 56);
     ambG.destroy();
 
-    const hitG = this.make.graphics({ add: false });
-    this.drawCar(hitG, 0x190d24, false, false);
-    hitG.fillStyle(0xff33cc); hitG.fillRect(7, 2, 7, 4); hitG.fillRect(22, 2, 7, 4);
-    hitG.fillStyle(0xffffff);
-    for (let x = 10; x <= 24; x += 7) hitG.fillTriangle(x, 17, x + 5, 17, x + 2, 22);
-    hitG.generateTexture('car_hitman', 36, 56);
-    hitG.destroy();
+    // Feral night ghoul — deliberately not car-shaped.
+    const ghoulG = this.make.graphics({ add: false });
+    ghoulG.fillStyle(0x263d31, 1);
+    ghoulG.fillCircle(20, 16, 14);
+    ghoulG.fillTriangle(7, 19, 33, 19, 27, 42);
+    ghoulG.fillStyle(0xa9ff68, 1);
+    ghoulG.fillCircle(14, 14, 4);
+    ghoulG.fillCircle(26, 14, 4);
+    ghoulG.fillStyle(0x07130b, 1);
+    ghoulG.fillCircle(14, 14, 2);
+    ghoulG.fillCircle(26, 14, 2);
+    ghoulG.fillStyle(0xd9e7c8, 1);
+    for (let x = 13; x <= 25; x += 6) ghoulG.fillTriangle(x, 25, x + 4, 25, x + 2, 30);
+    ghoulG.generateTexture('ghoul', 40, 44);
+    ghoulG.destroy();
+
+    // Angry spirits created by daytime pedestrian collisions.
+    const ghostG = this.make.graphics({ add: false });
+    ghostG.fillStyle(0xe8f8ff, 0.9);
+    ghostG.fillCircle(16, 12, 11);
+    ghostG.fillTriangle(5, 13, 27, 13, 23, 38);
+    ghostG.fillStyle(0xff33cc, 1);
+    ghostG.fillCircle(12, 10, 3);
+    ghostG.fillCircle(20, 10, 3);
+    ghostG.fillStyle(0x07131d, 1);
+    ghostG.fillCircle(16, 18, 3);
+    ghostG.generateTexture('vengeful_soul', 32, 40);
+    ghostG.destroy();
 
     // Stretch limo (for the Casino valet) — long, black, gold trim
     const limG = this.make.graphics({ add: false });
@@ -1726,12 +1737,6 @@ class GameScene extends Phaser.Scene {
     npcG.fillStyle(0x222244); npcG.fillRect(3, 26, 5, 12); npcG.fillRect(8, 26, 5, 12);
     npcG.generateTexture('npc', 16, 38);
     npcG.destroy();
-
-    // Bullet
-    const bulG = this.make.graphics({ add: false });
-    bulG.fillStyle(0xffee00); bulG.fillCircle(5, 5, 5);
-    bulG.generateTexture('bullet', 10, 10);
-    bulG.destroy();
 
     // Markers
     const pmG = this.make.graphics({ add: false });
@@ -2110,15 +2115,23 @@ class GameScene extends Phaser.Scene {
     this.pickupMarker.setVisible(true);
     this.dropoffMarker.setVisible(false);
 
-    // Monster cars only wake after dark.
+    // Monsters only wake after dark.
     this.hunted = false;
-    this.hitmen.clear(true, true);
-    this.bullets.clear(true, true);
+    this.ghouls.clear(true, true);
+    this.vengefulGhosts.clear(true, true);
     if (night) {
       this.hunted = true;
-      this.time.delayedCall(2500, () => this.showStatus('👹 Monsters are hunting your passenger. Lose them!'));
+      this.highLevel = Math.min(MAX_HIGH, this.highLevel + Math.min(30, this.vengefulSouls * 6));
+      this.time.delayedCall(2500, () => this.showStatus(this.vengefulSouls > 0
+        ? `👻 ${this.vengefulSouls} soul${this.vengefulSouls === 1 ? '' : 's'} you created came back for you.`
+        : '👹 Monsters are hunting your passenger. Lose them!'));
       for (let i = 0; i < 2; i++) {
-        this.time.delayedCall(4500 + i * 7000, () => { if (this.isOnShift && this.hunted) this.spawnHitman(); });
+        this.time.delayedCall(4500 + i * 7000, () => { if (this.isOnShift && this.hunted) this.spawnGhoul(); });
+      }
+      for (let i = 0; i < Math.min(5, this.vengefulSouls); i++) {
+        this.time.delayedCall(3200 + i * 1800, () => {
+          if (this.isOnShift && this.isNight()) this.spawnVengefulSoul();
+        });
       }
     }
   }
@@ -2131,8 +2144,8 @@ class GameScene extends Phaser.Scene {
   endShift(success) {
     this.isOnShift = false;
     this.hunted = false;
-    this.hitmen.clear(true, true);
-    this.bullets.clear(true, true);
+    this.ghouls.clear(true, true);
+    this.vengefulGhosts.clear(true, true);
     this.pickupMarker.setVisible(false);
     this.dropoffMarker.setVisible(false);
     this.arrowText.setText('');
@@ -2243,7 +2256,12 @@ class GameScene extends Phaser.Scene {
     this.playerSpeed *= 0.5;
     this.highLevel = Math.min(MAX_HIGH, this.highLevel + 8);
     this.takeDamage(spd >= KILL_SPEED ? 14 : 7, false);
-    if (this.gameActive) this.showStatus('😱 The pedestrian escaped. The taxi liked that too much.');
+    if (!this.isNight()) {
+      this.vengefulSouls++;
+      if (this.gameActive) this.showStatus('💀 Their soul will remember you when night falls.');
+    } else if (this.gameActive) {
+      this.showStatus('👻 The night noticed what you did.');
+    }
   }
 
   startRescue(npc) {
@@ -2273,17 +2291,6 @@ class GameScene extends Phaser.Scene {
     }
   }
 
-  hitBullet(player, bullet) {
-    if (!bullet.active) return;
-    bullet.destroy();
-    this.cameras.main.shake(180, 0.012);
-    this.playerSpeed *= 0.5;
-    SFX.playBulletWhiz();
-    this.takeDamage(15, false);
-    const msgs = ['🔫 They got you!', '💥 Shot!', '😱 Watch out!', '🩸 Hit!'];
-    this.showStatus(Phaser.Utils.Array.GetRandom(msgs));
-  }
-
   takeDamage(amount, shake) {
     this.health = Math.max(0, this.health - amount);
     if (shake) this.cameras.main.shake(350, 0.025);
@@ -2297,52 +2304,55 @@ class GameScene extends Phaser.Scene {
     this.nightsOwed = 0;
     this.money = Math.max(0, this.money) + 300;
     this.cameras.main.flash(800, 180, 0, 0);
-    this.showStatus(`🦈 Loan Shark bailed you out! $${DEBT_PER_KILL} debt — pay it down or the crew hunts you after dark.`);
+    this.showStatus(`🦈 Loan Shark bailed you out! $${DEBT_PER_KILL} debt — unpaid bargains draw monsters after dark.`);
   }
 
   loseTheCrew() {
     this.hunted = false;
     this.evadeTimer = 0;
-    this.hitmen.clear(true, true);
-    this.bullets.clear(true, true);
+    this.ghouls.clear(true, true);
+    this.vengefulGhosts.clear(true, true);
     this.cameras.main.flash(400, 0, 140, 60);
     this.showStatus('🏁 LOST THEM! The monsters slipped back into the fog.');
   }
 
-  spawnHitman() {
-    if (!this.gameActive || this.hitmen.getLength() >= 3) return;
+  spawnGhoul() {
+    if (!this.gameActive || this.ghouls.getLength() >= 3) return;
     const roadCols = [0, RI, RI * 2, RI * 3];
     let sx = Phaser.Utils.Array.GetRandom(roadCols) * TILE + TILE;
     let sy = Phaser.Utils.Array.GetRandom(roadCols) * TILE + TILE;
     if (Math.abs(sx - this.player.x) < 600) sx = WORLD_W - sx;
     if (Math.abs(sy - this.player.y) < 600) sy = WORLD_H - sy;
-    const h = this.hitmen.create(sx, sy, 'car_hitman');
-    h.setDepth(12);
-    h.body.setSize(26, 44);
-    h.setCollideWorldBounds(true);
-    h.speed = (250 + this.hitmen.getLength() * 15) * (this.mapDef.mafiaAggro || 1);
-    h.lastShotTime = 0;
+    const ghoul = this.ghouls.create(sx, sy, 'ghoul');
+    ghoul.setDepth(14);
+    ghoul.body.setSize(30, 36);
+    ghoul.setCollideWorldBounds(true);
+    ghoul.speed = (220 + this.ghouls.getLength() * 15) * (this.mapDef.mafiaAggro || 1);
+    ghoul.phase = Math.random() * Math.PI * 2;
   }
 
-  _fireDriveby(hitman) {
-    if (!this.gameActive) return;
-    const angle = Math.atan2(this.player.y - hitman.y, this.player.x - hitman.x);
-    const spread = (Math.random() - 0.5) * 0.3;
-    const b = this.bullets.create(hitman.x, hitman.y, 'bullet');
-    b.setDepth(20);
-    b.setVelocity(Math.cos(angle + spread) * 440, Math.sin(angle + spread) * 440);
-    this.time.delayedCall(2800, () => { if (b?.active) b.destroy(); });
-    SFX.playBulletWhiz();
+  spawnVengefulSoul() {
+    if (!this.gameActive || !this.isOnShift || !this.isNight() || this.vengefulGhosts.getLength() >= 5) return;
+    let point = this.randomRoadPoint();
+    for (let tries = 0; tries < 8 && Phaser.Math.Distance.Between(point.x, point.y, this.player.x, this.player.y) < 500; tries++) {
+      point = this.randomRoadPoint();
+    }
+    const ghost = this.vengefulGhosts.create(point.x, point.y, 'vengeful_soul');
+    ghost.setDepth(16);
+    ghost.body.setSize(24, 34);
+    ghost.setCollideWorldBounds(true);
+    ghost.speed = 135 + this.vengefulGhosts.getLength() * 10;
+    ghost.phase = Math.random() * Math.PI * 2;
   }
 
-  hitByHitman(player, hitman) {
+  hitByGhoul(player, ghoul) {
     if (!this.gameActive) return;
     if (this.time.now < this.invulnUntil) return;
-    this.invulnUntil = this.time.now + HITMAN_IFRAMES;
+    this.invulnUntil = this.time.now + MONSTER_IFRAMES;
 
     // A monster capture damages the taxi and can bind a permanent hex.
-    const ang = Math.atan2(this.player.y - hitman.y, this.player.x - hitman.x);
-    hitman.destroy();
+    const ang = Math.atan2(this.player.y - ghoul.y, this.player.x - ghoul.x);
+    ghoul.destroy();
     this.player.x += Math.cos(ang) * 28;
     this.player.y += Math.sin(ang) * 28;
     this.playerSpeed *= -0.3;
@@ -2359,6 +2369,19 @@ class GameScene extends Phaser.Scene {
     } else if (this.gameActive) {
       this.showStatus('👹 A monster caught the taxi! Integrity critical.');
     }
+  }
+
+  hitByVengefulSoul(player, ghost) {
+    if (!this.gameActive || this.time.now < this.invulnUntil) return;
+    this.invulnUntil = this.time.now + MONSTER_IFRAMES;
+    ghost.destroy();
+    this.playerSpeed *= 0.45;
+    this.highLevel = Math.min(MAX_HIGH, this.highLevel + 15);
+    this.cameras.main.flash(450, 220, 235, 255);
+    this.cameras.main.shake(300, 0.02);
+    SFX.playImpact(0.7);
+    this.takeDamage(18, false);
+    if (this.gameActive) this.showStatus('👻 A soul you created caught up with you.');
   }
 
   activateSoulPower() {
@@ -2703,22 +2726,34 @@ class GameScene extends Phaser.Scene {
 
     this.updateTraffic();
 
-    // Hitmen chase & drive-by — only during a hunted shift
+    // Monsters and the driver's own victims pursue the taxi after dark.
     if (this.hunted) {
       let nearest = Infinity;
-      this.hitmen.getChildren().forEach(h => {
-        if (!h.active) return;
-        const dx = this.player.x - h.x;
-        const dy = this.player.y - h.y;
+      this.ghouls.getChildren().forEach(ghoul => {
+        if (!ghoul.active) return;
+        const dx = this.player.x - ghoul.x;
+        const dy = this.player.y - ghoul.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
         if (dist < nearest) nearest = dist;
-        const angle = Math.atan2(dy, dx);
-        h.setVelocity(Math.cos(angle) * h.speed, Math.sin(angle) * h.speed);
-        h.setAngle(angle * Phaser.Math.RAD_TO_DEG + 90);
+        const angle = Math.atan2(dy, dx) + Math.sin(time / 260 + ghoul.phase) * 0.08;
+        ghoul.setVelocity(Math.cos(angle) * ghoul.speed, Math.sin(angle) * ghoul.speed);
+        ghoul.setAngle(Math.sin(time / 180 + ghoul.phase) * 12);
       });
 
-      // Shake-them evade meter: hold the crew far enough away for long enough → lose them
-      if (this.hitmen.getLength() > 0 && nearest > SHAKE_DIST) {
+      this.vengefulGhosts.getChildren().forEach(ghost => {
+        if (!ghost.active) return;
+        const dx = this.player.x - ghost.x;
+        const dy = this.player.y - ghost.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < nearest) nearest = dist;
+        const angle = Math.atan2(dy, dx) + Math.sin(time / 320 + ghost.phase) * 0.12;
+        ghost.setVelocity(Math.cos(angle) * ghost.speed, Math.sin(angle) * ghost.speed);
+        ghost.setAngle(Math.sin(time / 220 + ghost.phase) * 9);
+      });
+
+      // Hold every pursuer far enough away for long enough to escape the pack.
+      const pursuerCount = this.ghouls.getLength() + this.vengefulGhosts.getLength();
+      if (pursuerCount > 0 && nearest > SHAKE_DIST) {
         this.evadeTimer += dt;
         if (this.evadeTimer >= SHAKE_TIME) this.loseTheCrew();
       } else {
@@ -2767,6 +2802,7 @@ class GameScene extends Phaser.Scene {
       pizzaTimer: (this.isOnShift && this.jobType === 'living') ? Math.ceil(this.shiftTimer) : -1,
       difficulty: this.diff.name,
       hex:        this.phantomSteering ? 'PHANTOM STEERING' : '',
+      vengefulSouls: this.vengefulSouls,
       power:      this.time.now < this.soulPowerUntil ? 'RACER SOUL ACTIVE' :
                   (this.soulPowerReady ? 'RACER SOUL READY' : ''),
       speed:      Math.abs(this.playerSpeed),
