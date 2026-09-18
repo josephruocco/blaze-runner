@@ -353,7 +353,9 @@ class MenuScene extends Phaser.Scene {
     this.add.text(W / 2, 195, 'GRAVEYARD SHIFT', {
       fontSize: '25px', fontFamily: PIXEL_FONT, color: '#f6c744', letterSpacing: 5
     }).setOrigin(0.5);
-    this.add.text(W / 2, 285, '🚕  👻', { fontSize: '68px' }).setOrigin(0.5);
+    this.add.text(W / 2, 285, 'NIGHT FARES. NO QUESTIONS.', {
+      fontSize: '16px', fontFamily: PIXEL_FONT, color: '#b9d8ce', letterSpacing: 2
+    }).setOrigin(0.5);
 
     // Minimal instructions
     this.add.text(W / 2, H / 2 + 50, 'Living fares by day. Lost souls by night.', {
@@ -366,12 +368,12 @@ class MenuScene extends Phaser.Scene {
 
     const best = parseInt(localStorage.getItem('ghostTaxiHighScore') || '0');
     if (best > 0) {
-      this.add.text(W / 2, H / 2 + 124, `🏆 Best Score: ${best}`, {
+      this.add.text(W / 2, H / 2 + 124, `Best Score: ${best}`, {
         fontSize: '15px', fontFamily: 'Arial Black, Arial', color: '#ffdd00'
       }).setOrigin(0.5);
     }
 
-    this.add.text(W / 2, H - 34, '⚠ Photosensitivity warning: contains flashing, screen shake & motion that may cause dizziness.', {
+    this.add.text(W / 2, H - 34, 'Photosensitivity warning: contains flashing, screen shake & motion that may cause dizziness.', {
       fontSize: '12px', fontFamily: 'Arial', color: '#c9a24b'
     }).setOrigin(0.5);
 
@@ -490,7 +492,7 @@ class MapSelectScene extends Phaser.Scene {
     const randY = gy[1] + cardH / 2 + 60;
     const rnd = this.add.rectangle(W / 2, randY, 300, 54, 0x224422)
       .setStrokeStyle(2, 0x00ff88).setInteractive({ useHandCursor: true });
-    this.add.text(W / 2, randY, '🎲  RANDOM CITY', {
+    this.add.text(W / 2, randY, 'RANDOM CITY', {
       fontSize: '20px', fontFamily: 'Arial Black, Arial', color: '#ffffff'
     }).setOrigin(0.5);
     rnd.on('pointerover', () => rnd.setFillStyle(0x336633));
@@ -570,7 +572,7 @@ class GameOverScene extends Phaser.Scene {
     }).setOrigin(0.5);
 
     if (isNewBest) {
-      this.add.text(W / 2, 325, '🏆 NEW HIGH SCORE!', {
+      this.add.text(W / 2, 325, 'NEW HIGH SCORE!', {
         fontSize: '20px', fontFamily: 'Arial Black, Arial', color: '#ffdd00'
       }).setOrigin(0.5);
     } else {
@@ -629,7 +631,7 @@ class GameOverScene extends Phaser.Scene {
     if (!this.sys.isActive()) return;
     if (this._lbLoading) { this._lbLoading.destroy(); this._lbLoading = null; }
     const topY = 462;
-    this.add.text(W / 2, topY, '🌍 GLOBAL TOP 6', {
+    this.add.text(W / 2, topY, 'GLOBAL TOP 6', {
       fontSize: '16px', fontFamily: PIXEL_FONT, color: '#ffdd44'
     }).setOrigin(0.5);
     if (!list.length) {
@@ -691,8 +693,10 @@ class TimeOffScene extends Phaser.Scene {
     const bg = this.add.rectangle(x, y, w, 210, color, 0.95)
       .setStrokeStyle(2, enabled ? 0x44ff88 : 0x333333).setAlpha(a);
 
-    const emoji = { rest: '😴', repair: '🔧', commune: '👻' }[choice];
-    this.add.text(x, y - 60, emoji, { fontSize: '32px' }).setOrigin(0.5).setAlpha(a);
+    const marker = { rest: 'ZZZ', repair: 'FIX', commune: 'SOUL' }[choice];
+    this.add.text(x, y - 60, marker, {
+      fontSize: '15px', fontFamily: PIXEL_FONT, color: '#d8eee3', letterSpacing: 2
+    }).setOrigin(0.5).setAlpha(a);
     this.add.text(x, y - 10, title, {
       fontSize: '20px', fontFamily: 'Arial Black, Arial', color: '#ffffff', align: 'center'
     }).setOrigin(0.5).setAlpha(a);
@@ -858,7 +862,7 @@ class UIScene extends Phaser.Scene {
       }).setOrigin(0.5).setScrollFactor(0).setDepth(96);
 
       // Legend
-      this.add.text(MX, MY + MM + 4, '🔵 Cemetery  🟡 Taxi  ⚪ You  🟢/🔴 Fare', {
+      this.add.text(MX, MY + MM + 4, 'Cemetery   Taxi   You   Fare', {
         fontSize: '9px', color: '#888888', fontFamily: 'Arial'
       }).setScrollFactor(0).setDepth(96);
 
@@ -867,16 +871,16 @@ class UIScene extends Phaser.Scene {
     }
 
     // ── Mute button ──
-    this.muteBtn = this.add.text(W - 48, H - 14, '🔊', {
+    this.muteBtn = this.add.text(W - 48, H - 14, 'SOUND', {
       fontSize: '16px', fontFamily: 'Arial', backgroundColor: '#224422', padding: { x: 5, y: 3 }
     }).setOrigin(1, 1).setScrollFactor(0).setDepth(120).setInteractive({ useHandCursor: true });
     this.muteBtn.on('pointerdown', () => {
       const muted = SFX.toggleMute();
-      this.muteBtn.setText(muted ? '🔇' : '🔊');
+      this.muteBtn.setText(muted ? 'MUTED' : 'SOUND');
     });
     this.input.keyboard.on('keydown-M', () => {
       const muted = SFX.toggleMute();
-      this.muteBtn.setText(muted ? '🔇' : '🔊');
+      this.muteBtn.setText(muted ? 'MUTED' : 'SOUND');
     });
 
     // ── Help overlay (? button) ──
@@ -890,15 +894,15 @@ class UIScene extends Phaser.Scene {
       .setScrollFactor(0).setDepth(121).setStrokeStyle(2, 0x00ff88).setVisible(false);
 
     const helpLines = [
-      ['🎮 CONTROLS',       'WASD / Arrows = drive    SPACE = brake    E = gas / store'],
-      ['☀️ DAY FARES',      'Carry living passengers for cash before sunset'],
-      ['🌙 SOUL FARES',     'Carry stranded souls after dark before they fade'],
-      ['👻 HAUNT',          'More haunt means more speed and score — but less control'],
-      ['👹 MONSTERS',       'Ghouls hunt soul passengers through the night'],
-      ['✨ SOUL POWER',     'Rescue the Racer Soul, then press SHIFT / POWER'],
+      ['CONTROLS',          'WASD / Arrows = drive    SPACE = brake    E = gas / store'],
+      ['DAY FARES',         'Carry living passengers for cash before sunset'],
+      ['SOUL FARES',        'Carry stranded souls after dark before they fade'],
+      ['HAUNT',             'More haunt means more speed and score — but less control'],
+      ['MONSTERS',          'Ghouls hunt soul passengers through the night'],
+      ['SOUL POWER',        'Rescue the Racer Soul, then press SHIFT / POWER'],
       ['⬡ HEXES',           'Getting caught binds dangerous power to the taxi'],
-      ['⛽ GARAGE',         'Drive close and press E to restore taxi integrity'],
-      ['⛪ SANCTUARY',      'Pay to cleanse HAUNT during a shift'],
+      ['GARAGE',            'Drive close and press E to restore taxi integrity'],
+      ['SANCTUARY',         'Pay to cleanse HAUNT during a shift'],
     ];
     this.helpTexts = helpLines.map(([ label, desc ], i) => {
       const y = H / 2 - 120 + i * 36;
@@ -919,7 +923,7 @@ class UIScene extends Phaser.Scene {
       this.helpVisible = !this.helpVisible;
       this.helpPanel.setVisible(this.helpVisible);
       this.helpTexts.forEach(row => row.forEach(t => t.setVisible(this.helpVisible)));
-      helpBtn.setText(this.helpVisible ? '✕' : '?');
+      helpBtn.setText(this.helpVisible ? 'X' : '?');
     };
     helpBtn.on('pointerdown', toggleHelp);
     this.input.keyboard.on('keydown-QUESTION_MARK', toggleHelp);
@@ -964,10 +968,10 @@ class UIScene extends Phaser.Scene {
     };
 
     mkBtn(H / 2 - 70, 300, '▶  RESUME', 0x007733, 0x00aa44, () => Bus.emit('touch', 'pause', true), this.pauseObjs, 171);
-    const mute = mkBtn(H / 2, 300, SFX.musicMuted ? '🔇  UNMUTE' : '🔊  MUTE', 0x2a4a6a, 0x3a6390, () => {
+    const mute = mkBtn(H / 2, 300, SFX.musicMuted ? 'UNMUTE' : 'MUTE', 0x2a4a6a, 0x3a6390, () => {
       const m = SFX.toggleMute();
-      mute.txt.setText(m ? '🔇  UNMUTE' : '🔊  MUTE');
-      if (this.muteBtn) this.muteBtn.setText(m ? '🔇' : '🔊');
+      mute.txt.setText(m ? 'UNMUTE' : 'MUTE');
+      if (this.muteBtn) this.muteBtn.setText(m ? 'MUTED' : 'SOUND');
     }, this.pauseObjs, 171);
     mkBtn(H / 2 + 70, 300, '⏹  END GAME', 0x8a2222, 0xb03030, () => this.showEndConfirm(true), this.pauseObjs, 171);
 
@@ -1088,14 +1092,14 @@ class UIScene extends Phaser.Scene {
     this.jobText.setText(d.jobStatus || '');
     const curses = [];
     if (d.hex) curses.push(`⬡ HEX: ${d.hex}`);
-    if (d.vengefulSouls > 0) curses.push(`👻 ${d.vengefulSouls} VENGEFUL`);
+    if (d.vengefulSouls > 0) curses.push(`${d.vengefulSouls} VENGEFUL`);
     this.debtText.setText(curses.join('  ·  '));
     this.rescueText.setText('');
 
     // Pizza delivery countdown
     if (d.pizzaTimer >= 0) {
       const t = d.pizzaTimer, mm = Math.floor(t / 60), ss = t % 60;
-      this.pizzaTimerText.setText(`🚕 ${mm}:${String(ss).padStart(2, '0')} · fare deadline`);
+      this.pizzaTimerText.setText(`${mm}:${String(ss).padStart(2, '0')} · fare deadline`);
       this.pizzaTimerText.setColor(t <= 15 ? '#ff5555' : '#ffcc44');
     } else this.pizzaTimerText.setText('');
 
@@ -1148,7 +1152,7 @@ class UIScene extends Phaser.Scene {
     if (this.highLevel > 82) fx.push('Controls flip');
     if (this.highLevel > 92) fx.push('FULLY POSSESSED');
     if (d.hunted)            fx.push('Hunted');
-    if (d.power)             fx.push(`✨ ${d.power}`);
+    if (d.power)             fx.push(d.power);
     this.fxText.setText(fx.join('\n'));
 
     this.tintOverlay.setAlpha(Math.max(0, (this.highLevel - 25) / 75 * 0.13));
@@ -1165,7 +1169,7 @@ class UIScene extends Phaser.Scene {
       const ampm = h24 < 12 ? 'AM' : 'PM';
       const h12  = h24 % 12 || 12;
       const isNight = nightAlpha > 0.05;
-      this.clockText.setText(`${isNight ? '🌙' : '☀️'} ${h12}:${String(min).padStart(2,'0')} ${ampm}`);
+      this.clockText.setText(`${isNight ? 'NIGHT' : 'DAY'}  ${h12}:${String(min).padStart(2,'0')} ${ampm}`);
     }
   }
 
@@ -1430,7 +1434,7 @@ class GameScene extends Phaser.Scene {
               g.fillStyle(0x2e6b28); g.fillCircle(t[0], t[1], 17);
               g.fillStyle(0x3f8a36); g.fillCircle(t[0] - 5, t[1] - 5, 9);
             });
-            this.add.text(bx + bw / 2, by + bh / 2, '🌳 PARK', {
+            this.add.text(bx + bw / 2, by + bh / 2, 'PARK', {
               fontSize: '15px', fontFamily: 'Arial Black, Arial', color: '#c7efa0', stroke: '#112233', strokeThickness: 3
             }).setOrigin(0.5).setDepth(5);
             this.parkArea = { x: px, y: py, w: pw, h: ph };
@@ -1444,7 +1448,7 @@ class GameScene extends Phaser.Scene {
             const iw = fr * 1.5;
             const wall = this.wallGroup.create(fcx, fcy, 'pixel');
             wall.setVisible(false); wall.setDisplaySize(iw, iw); wall.refreshBody();
-            this.add.text(fcx, fcy - fr - 14, '⛲ PLAZA', {
+            this.add.text(fcx, fcy - fr - 14, 'PLAZA', {
               fontSize: '14px', fontFamily: 'Arial Black, Arial', color: '#dfeaf5', stroke: '#112233', strokeThickness: 3
             }).setOrigin(0.5).setDepth(5);
           } else if (feat.type === 'lot') {
@@ -1467,7 +1471,7 @@ class GameScene extends Phaser.Scene {
               const cwall = this.wallGroup.create(cxp, ry, 'pixel');
               cwall.setVisible(false); cwall.setDisplaySize(26, 46); cwall.refreshBody();
             }));
-            this.add.text(bx + bw / 2, py + storeH / 2, '🛒 MARKET', {
+            this.add.text(bx + bw / 2, py + storeH / 2, 'MARKET', {
               fontSize: '15px', fontFamily: 'Arial Black, Arial', color: '#ffffff', stroke: '#000', strokeThickness: 3
             }).setOrigin(0.5).setDepth(5);
           } else if (feat.type === 'casino') {
@@ -1486,7 +1490,7 @@ class GameScene extends Phaser.Scene {
               const w = this.wallGroup.create(l[0], l[1], 'pixel'); w.setVisible(false);
               w.setDisplaySize(l[2] ? 46 : 26, l[2] ? 26 : 46); w.refreshBody();
             });
-            this.add.text(bx + bw / 2, cby + cbh * 0.42 + 8, '🎰 CASINO', {
+            this.add.text(bx + bw / 2, cby + cbh * 0.42 + 8, 'CASINO', {
               fontSize: '15px', fontFamily: 'Arial Black, Arial', color: '#ffdd33', stroke: '#3a1030', strokeThickness: 4
             }).setOrigin(0.5).setDepth(5);
             this.casinoRect = { x: bx, y: by, w: bw, h: bh, limos: feat.valetLimos || 3 };
@@ -1541,25 +1545,25 @@ class GameScene extends Phaser.Scene {
           g.fillRect(cx - 6, cy - 28, 12, 56);
           g.fillRect(cx - 28, cy - 6, 56, 12);
           this.hospitalPos = { x: bottomX, y: bottomY };
-          this.add.text(cx, cy + 50, '🪦 CEMETERY', {
+          this.add.text(cx, cy + 50, 'CEMETERY', {
             fontSize: '16px', fontFamily: 'Arial Black, Arial',
             color: '#ff4444', stroke: '#fff', strokeThickness: 3
           }).setOrigin(0.5).setDepth(5);
         } else if (isPizz) {
           this.pizzeriaPos = { x: bottomX, y: bottomY };
-          this.add.text(cx, cy, '🚕\nTAXI DEPOT', {
+          this.add.text(cx, cy, 'TAXI DEPOT', {
             fontSize: '20px', fontFamily: 'Arial Black, Arial',
             color: '#ffffff', align: 'center', stroke: '#000', strokeThickness: 3
           }).setOrigin(0.5).setDepth(5);
         } else if (isGas) {
           this.gasPos = { x: accessX, y: accessY };
-          this.add.text(cx, cy, '⛽\nGAS', {
+          this.add.text(cx, cy, 'GAS', {
             fontSize: '20px', fontFamily: 'Arial Black, Arial',
             color: '#ffff88', align: 'center', stroke: '#000', strokeThickness: 3
           }).setOrigin(0.5).setDepth(5);
         } else if (isStore) {
           this.storePos = { x: accessX, y: accessY };
-          this.add.text(cx, cy, '⛪\nSANCTUARY', {
+          this.add.text(cx, cy, 'SANCTUARY', {
             fontSize: '20px', fontFamily: 'Arial Black, Arial',
             color: '#aaffaa', align: 'center', stroke: '#000', strokeThickness: 3
           }).setOrigin(0.5).setDepth(5);
@@ -1633,8 +1637,8 @@ class GameScene extends Phaser.Scene {
       for (let s = 0; s < 8; s++) { const a = s * Math.PI / 4; g.fillStyle(s % 2 ? 0xff5566 : 0xffcc44); g.fillCircle(wcx + Math.cos(a) * wr, wcy + Math.sin(a) * wr, 6); }
       [0.33, 0.56].forEach(fx => { const bx = WORLD_W * fx, by = deepY + 46; g.fillStyle(0x7a4a2a); g.fillRect(bx - 28, by - 8, 52, 16); g.fillTriangle(bx + 22, by - 8, bx + 40, by, bx + 22, by + 8); g.fillStyle(0xe8e8e8); g.fillRect(bx - 10, by - 19, 17, 12); });
 
-      this.add.text(WORLD_W * 0.24, wt + 30, '🏖️ BEACH', { fontSize: '13px', fontFamily: 'Arial Black, Arial', color: '#5a4620', stroke: '#efe2bd', strokeThickness: 3 }).setOrigin(0.5).setDepth(5);
-      this.add.text(WORLD_W * 0.79, wt + 30, '🎡 PIER', { fontSize: '13px', fontFamily: 'Arial Black, Arial', color: '#ffe4a0', stroke: '#3a2a10', strokeThickness: 3 }).setOrigin(0.5).setDepth(5);
+      this.add.text(WORLD_W * 0.24, wt + 30, 'BEACH', { fontSize: '13px', fontFamily: 'Arial Black, Arial', color: '#5a4620', stroke: '#efe2bd', strokeThickness: 3 }).setOrigin(0.5).setDepth(5);
+      this.add.text(WORLD_W * 0.79, wt + 30, 'PIER', { fontSize: '13px', fontFamily: 'Arial Black, Arial', color: '#ffe4a0', stroke: '#3a2a10', strokeThickness: 3 }).setOrigin(0.5).setDepth(5);
     }
 
     // ── Highway on/off ramp at the top edge (cars stream in and out here) ──
@@ -1643,7 +1647,7 @@ class GameScene extends Phaser.Scene {
       g.fillStyle(M.road); g.fillRect(ex - TILE - 24, 0, TILE * 2 + 48, TILE + 40);   // widened ramp mouth
       g.fillStyle(0xffdd44, 0.85);
       for (let k = 0; k < 3; k++) { const yy = 26 + k * 22; g.fillTriangle(ex - 15, yy, ex + 15, yy, ex, yy + 15); }
-      this.add.text(ex, 104, '🛣️ HIGHWAY', {
+      this.add.text(ex, 104, 'HIGHWAY', {
         fontSize: '14px', fontFamily: 'Arial Black, Arial', color: '#ffdd66', stroke: '#000', strokeThickness: 3
       }).setOrigin(0.5).setDepth(5);
     }
@@ -1896,7 +1900,7 @@ class GameScene extends Phaser.Scene {
     wall.refreshBody();
     this._roadworkWall = wall;
 
-    this._roadworkItems.push(this.add.text(pick.cx, pick.cy - road / 2 - 8, '🚧 ROAD CLOSED', {
+    this._roadworkItems.push(this.add.text(pick.cx, pick.cy - road / 2 - 8, 'ROAD CLOSED', {
       fontSize: '11px', fontFamily: 'Arial Black, Arial', color: '#ffcc33', stroke: '#000', strokeThickness: 3
     }).setOrigin(0.5).setDepth(6));
   }
@@ -2566,8 +2570,8 @@ class GameScene extends Phaser.Scene {
     if (this.isInTimeOff) return 'Time off...';
     if (!this.isOnShift)  return '';
     if (this.jobType === 'living')
-      return this.jobPhase === 'pickup' ? '☀️ → Taxi Depot' : '🚕 → Living fare';
-    return this.jobPhase === 'pickup' ? '🌙 → Stranded soul' : '👻 → Cemetery';
+      return this.jobPhase === 'pickup' ? 'DAY → Taxi Depot' : 'Living fare';
+    return this.jobPhase === 'pickup' ? 'NIGHT → Stranded soul' : 'Cemetery';
   }
 
   triggerGameOver(reason, win = false) {

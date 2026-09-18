@@ -6,7 +6,7 @@
   <title>Ghost Taxi: Graveyard Shift</title>
   <meta name="description" content="Drive living fares by day and stranded souls by night. Master your haunted taxi's powers and evade the monsters hunting you through a cursed town.">
   <meta name="theme-color" content="#07131d">
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='88'>🚕</text></svg>">
+  <link rel="icon" type="image/png" href="assets/app-icon.png">
   <!-- Social link preview (Reddit / Twitter / Discord) -->
   <meta property="og:type" content="website">
   <meta property="og:title" content="Ghost Taxi: Graveyard Shift">
@@ -35,7 +35,10 @@
       #rotate { display: flex; position: fixed; inset: 0; z-index: 9998; background: #0a0a0b;
         color: #fff; flex-direction: column; align-items: center; justify-content: center;
         text-align: center; gap: 18px; padding: 32px; font-family: Arial, sans-serif; }
-      #rotate .ico { font-size: 64px; animation: rot 2s ease-in-out infinite; }
+      #rotate .ico { width: 38px; height: 64px; border: 4px solid #55f5ec; border-radius: 5px;
+        position: relative; animation: rot 2s ease-in-out infinite; }
+      #rotate .ico::after { content: ''; position: absolute; width: 12px; height: 3px;
+        left: 9px; bottom: 5px; background: #55f5ec; }
       #rotate b { font-size: 22px; letter-spacing: 1px; }
       #rotate span { font-size: 15px; color: #9ab; }
     }
@@ -45,7 +48,7 @@
 <body>
   <div id="err"></div>
   <div id="rotate">
-    <div class="ico">📱</div>
+    <div class="ico" aria-hidden="true"></div>
     <b>ROTATE YOUR PHONE</b>
     <span>Ghost Taxi plays best in landscape</span>
   </div>
